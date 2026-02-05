@@ -20,9 +20,9 @@ endef
 
 .PHONY: all checkdirs clean
 
-all: checkdirs MQSim
+all: checkdirs mqsim
 
-MQSim: $(OBJ)
+mqsim: $(OBJ)
 	$(LD) $^ -o $@
 
 checkdirs: $(BUILD_DIR)
@@ -32,6 +32,6 @@ $(BUILD_DIR):
 
 clean:
 	rm -rf $(BUILD_DIR)
-	rm -f MQSim
+	rm -f mqsim
 
 $(foreach bdir,$(BUILD_DIR),$(eval $(call make-goal,$(bdir))))

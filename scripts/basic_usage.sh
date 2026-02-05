@@ -1,0 +1,1 @@
+./mqsim -i devconf/ssdconfig.xml -w wkdconf/workload.xml -o results/example_results.xml

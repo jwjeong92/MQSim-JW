@@ -3,9 +3,11 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
+import sys
 
+filename = sys.argv[1]
 # Load the XML file
-tree = ET.parse('workload_scenario_2.xml')
+tree = ET.parse(filename)
 root = tree.getroot()
 
 # 1. Parse Host I/O Flow Results
@@ -89,4 +91,5 @@ ax4.set_ylabel('Chip (Way) ID')
 
 # Save and Display
 plt.suptitle('MQSim Result Analysis: Scenario 1', fontsize=16)
-plt.savefig('mqsim_analysis_2.png')
+res = filename.split('.')[0]
+plt.savefig(f'res_{res}.png')

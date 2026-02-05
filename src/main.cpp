@@ -13,26 +13,31 @@
 using namespace std;
 
 
-void command_line_args(char* argv[], string& input_file_path, string& workload_file_path)
+void command_line_args(int argc, char* argv[], string& input_file_path, string& workload_file_path, string& output_file_path)
 {
+    // [수정됨] 고정값 5 대신 argc를 사용하여 유동적인 인자 개수 처리
+    for (int arg_cntr = 1; arg_cntr < argc; arg_cntr++) {
+        string arg = argv[arg_cntr];
 
-	for (int arg_cntr = 1; arg_cntr < 5; arg_cntr++) {
-		string arg = argv[arg_cntr];
+        char file_path_switch[] = "-i";
+        if (arg.compare(0, strlen(file_path_switch), file_path_switch) == 0) {
+            input_file_path.assign(argv[++arg_cntr]);
+            continue;
+        }
 
-		char file_path_switch[] = "-i";
-		if (arg.compare(0, strlen(file_path_switch), file_path_switch) == 0) {
-			input_file_path.assign(argv[++arg_cntr]);
-			//cout << input_file_path << endl;
-			continue;
-		}
+        char workload_path_switch[] = "-w";
+        if (arg.compare(0, strlen(workload_path_switch), workload_path_switch) == 0) {
+            workload_file_path.assign(argv[++arg_cntr]);
+            continue;
+        }
 
-		char workload_path_switch[] = "-w";
-		if (arg.compare(0, strlen(workload_path_switch), workload_path_switch) == 0) {
-			workload_file_path.assign(argv[++arg_cntr]);
-			//cout << workload_file_path << endl;
-			continue;
-		}
-	}
+        // [추가됨] -o 옵션 처리
+        char output_path_switch[] = "-o";
+        if (arg.compare(0, strlen(output_path_switch), output_path_switch) == 0) {
+            output_file_path.assign(argv[++arg_cntr]);
+            continue;
+        }
+    }
 }
 
 void read_configuration_parameters(const string ssd_config_file_path, Execution_Parameter_Set* exec_params)
@@ -252,21 +257,24 @@ void collect_results(SSD_Device& ssd, Host_System& host, const char* output_file
 
 void print_help()
 {
-	cout << "MQSim - SSD simulator with both NVMe and SATA host interface behavior, see ReadMe.md for details" << endl <<
-		"Standalone Usage:" << endl <<
-		"./MQSim [-i path/to/config/file] [-w path/to/workload/file]" << endl;
+    // [수정됨] 도움말에 -o 옵션 추가
+    cout << "MQSim - SSD simulator with both NVMe and SATA host interface behavior, see ReadMe.md for details" << endl <<
+        "Standalone Usage:" << endl <<
+        "./MQSim [-i path/to/config/file] [-w path/to/workload/file] [-o path/to/output/file]" << endl;
 }
 
 int main(int argc, char* argv[])
 {
-	string ssd_config_file_path, workload_defs_file_path;
-	if (argc != 5) {
-		// MQSim expects 2 arguments: 1) the path to the SSD configuration definition file, and 2) the path to the workload definition file
-		print_help();
-		return 1;
-	}
+	string ssd_config_file_path, workload_defs_file_path, output_file_path;
+    
+    // [수정됨] 단순히 argc != 5로 체크하면 optional 인자(-o)를 처리할 수 없으므로 제거하고,
+    // command_line_args 호출 후 필수 인자 확인 방식으로 변경
+    command_line_args(argc, argv, ssd_config_file_path, workload_defs_file_path, output_file_path);
 
-	command_line_args(argv, ssd_config_file_path, workload_defs_file_path);
+    if (ssd_config_file_path.empty() || workload_defs_file_path.empty()) {
+        print_help();
+        return 1;
+    }
 
 	Execution_Parameter_Set* exec_params = new Execution_Parameter_Set;
 	read_configuration_parameters(ssd_config_file_path, exec_params);
@@ -303,7 +311,24 @@ int main(int argc, char* argv[])
 		PRINT_MESSAGE("");
 
 		PRINT_MESSAGE("Writing results to output file .......");
-		collect_results(ssd, host, (workload_defs_file_path.substr(0, workload_defs_file_path.find_last_of(".")) + "_scenario_" + std::to_string(cntr) + ".xml").c_str());
+
+		// [수정됨] output_file_path가 제공되었는지 확인하여 파일 이름 결정
+        string final_output_path;
+        if (output_file_path.empty()) {
+            // 인자가 없으면 기존 방식대로 자동 생성
+            final_output_path = workload_defs_file_path.substr(0, workload_defs_file_path.find_last_of(".")) + "_scenario_" + std::to_string(cntr) + ".xml";
+        } else {
+            // 인자가 있으면 해당 경로 사용
+            // 만약 시나리오가 여러 개인데 파일명이 하나라면, 덮어쓰기 방지를 위해 접미사 추가를 고려할 수 있으나,
+            // 사용자의 요청("경로+이름을 인수로 주고 싶어")을 정확히 따르기 위해 입력값을 그대로 사용 (또는 필요시 아래처럼 처리 가능)
+            if (io_scenarios->size() > 1) {
+                final_output_path = output_file_path + "_scenario_" + std::to_string(cntr) + ".xml";
+            } else {
+                final_output_path = output_file_path;
+            }
+        }
+        
+        collect_results(ssd, host, final_output_path.c_str());
 	}
     cout << "Simulation complete; Press any key to exit." << endl;
 
