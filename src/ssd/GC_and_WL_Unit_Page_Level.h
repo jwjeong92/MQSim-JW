@@ -26,6 +26,7 @@ namespace SSD_Components
 		bool GC_is_in_urgent_mode(const NVM::FlashMemory::Flash_Chip*);
 
 		void Check_gc_required(const unsigned int free_block_pool_size, const NVM::FlashMemory::Physical_Page_Address& plane_address);
+		void Check_read_reclaim_required(const NVM::FlashMemory::Physical_Page_Address& block_address, unsigned int read_count);
 	private:
 		NVM_PHY_ONFI * flash_controller;
 	};
