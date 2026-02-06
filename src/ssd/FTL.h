@@ -10,6 +10,8 @@
 #include "GC_and_WL_Unit_Base.h"
 #include "NVM_PHY_ONFI.h"
 #include "Stats.h"
+#include "ECC_Engine.h"
+#include "IFP_Aggregation_Unit.h"
 
 namespace SSD_Components
 {
@@ -39,6 +41,8 @@ namespace SSD_Components
 		GC_and_WL_Unit_Base* GC_and_WL_Unit;
 		TSU_Base * TSU;
 		NVM_PHY_ONFI* PHY;
+		ECC_Engine* ECC;
+		IFP_Aggregation_Unit* Aggregation_Unit;
 		void Report_results_in_XML(std::string name_prefix, Utils::XmlWriter& xmlwriter);
 	private:
 		unsigned int channel_no, chip_no_per_channel, die_no_per_chip, plane_no_per_die;
