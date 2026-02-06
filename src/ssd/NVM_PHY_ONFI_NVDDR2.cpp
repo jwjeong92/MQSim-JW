@@ -2,6 +2,9 @@
 #include "../sim/Engine.h"
 #include "NVM_PHY_ONFI_NVDDR2.h"
 #include "Stats.h"
+#include "Flash_Block_Manager_Base.h"
+#include "GC_and_WL_Unit_Base.h"
+#include "NVM_Transaction_Flash_IFP.h"
 
 namespace SSD_Components {
 	/*hack: using this style to emulate event/delegate*/
@@ -11,6 +14,9 @@ namespace SSD_Components {
 		unsigned int ChannelCount, unsigned int chip_no_per_channel, unsigned int DieNoPerChip, unsigned int PlaneNoPerDie)
 		: NVM_PHY_ONFI(id, ChannelCount, chip_no_per_channel, DieNoPerChip, PlaneNoPerDie), channels(channels)
 	{
+		ecc_engine = NULL;
+		block_manager_ref = NULL;
+		gc_wl_unit_ref = NULL;
 		WaitingReadTX = new Flash_Transaction_Queue[channel_count];
 		WaitingGCRead_TX = new Flash_Transaction_Queue[channel_count];
 		WaitingMappingRead_TX = new Flash_Transaction_Queue[channel_count];
@@ -310,8 +316,40 @@ namespace SSD_Components {
 					chipBKE->Expected_command_exec_finish_time = dieBKE->Expected_finish_time;
 				}
 				break;
+			case Transaction_Type::IFP_GEMV:
+			if (transaction_list.size() == 1) {
+				Stats::IssuedIFPGemvCMD++;
+				dieBKE->ActiveCommand->CommandCode = CMD_IFP_READ_DOT_PRODUCT;
+				DEBUG("Chip " << targetChip->ChannelID << ", " << targetChip->ChipID << ", " << transaction_list.front()->Address.DieID << ": Sending IFP read-dot-product command to chip for LPA: " << transaction_list.front()->LPA)
+			} else {
+				Stats::IssuedIFPGemvCMD++;
+				dieBKE->ActiveCommand->CommandCode = CMD_IFP_READ_DOT_PRODUCT_MULTIPLANE;
+				DEBUG("Chip " << targetChip->ChannelID << ", " << targetChip->ChipID << ", " << transaction_list.front()->Address.DieID << ": Sending multi-plane IFP read-dot-product command to chip for LPA: " << transaction_list.front()->LPA)
+			}
+
+			for (std::list<NVM_Transaction_Flash*>::iterator it = transaction_list.begin();
+				it != transaction_list.end(); it++) {
+				(*it)->STAT_transfer_time += target_channel->ReadCommandTime[transaction_list.size()];
+			}
+			if (chipBKE->OngoingDieCMDTransfers.size() == 0) {
+				targetChip->StartCMDXfer();
+				chipBKE->Status = ChipStatus::CMD_IN;
+				chipBKE->Last_transfer_finish_time = Simulator->Time() + suspendTime + target_channel->ReadCommandTime[transaction_list.size()];
+				Simulator->Register_sim_event(Simulator->Time() + suspendTime + target_channel->ReadCommandTime[transaction_list.size()], this,
+					dieBKE, (int)NVDDR2_SimEventType::IFP_CMD_ADDR_TRANSFERRED);
+			} else {
+				dieBKE->DieInterleavedTime = suspendTime + target_channel->ReadCommandTime[transaction_list.size()];
+				chipBKE->Last_transfer_finish_time += suspendTime + target_channel->ReadCommandTime[transaction_list.size()];
+			}
+			chipBKE->OngoingDieCMDTransfers.push(dieBKE);
+
+			dieBKE->Expected_finish_time = chipBKE->Last_transfer_finish_time + targetChip->Get_command_execution_latency(dieBKE->ActiveCommand->CommandCode, dieBKE->ActiveCommand->Address[0].PageID);
+			if (chipBKE->Expected_command_exec_finish_time < dieBKE->Expected_finish_time) {
+				chipBKE->Expected_command_exec_finish_time = dieBKE->Expected_finish_time;
+			}
+			break;
 			default:
-				throw std::invalid_argument("NVM_PHY_ONFI_NVDDR2: Unhandled event specified!");
+				throw std::invalid_argument("NVM_PHY_ONFI_NVDDR2: Unhandled transaction type!");
 		}
 
 		target_channel->SetStatus(BusChannelStatus::BUSY, targetChip);
@@ -346,6 +384,21 @@ namespace SSD_Components {
 		switch ((NVDDR2_SimEventType)ev->Type) {
 			case NVDDR2_SimEventType::READ_CMD_ADDR_TRANSFERRED:
 				//DEBUG2("Chip " << targetChip->ChannelID << ", " << targetChip->ChipID << ", " << dieBKE->ActiveTransactions.front()->Address.DieID << ": READ_CMD_ADDR_TRANSFERRED ")
+				targetChip->EndCMDXfer(dieBKE->ActiveCommand);
+				for (auto tr : dieBKE->ActiveTransactions) {
+					tr->STAT_execution_time = dieBKE->Expected_finish_time - Simulator->Time();
+				}
+				chipBKE->OngoingDieCMDTransfers.pop();
+				chipBKE->No_of_active_dies++;
+				if (chipBKE->OngoingDieCMDTransfers.size() > 0) {
+					perform_interleaved_cmd_data_transfer(targetChip, chipBKE->OngoingDieCMDTransfers.front());
+					return;
+				} else {
+					chipBKE->Status = ChipStatus::READING;
+					targetChannel->SetStatus(BusChannelStatus::IDLE, targetChip);
+				}
+				break;
+			case NVDDR2_SimEventType::IFP_CMD_ADDR_TRANSFERRED:
 				targetChip->EndCMDXfer(dieBKE->ActiveCommand);
 				for (auto tr : dieBKE->ActiveTransactions) {
 					tr->STAT_execution_time = dieBKE->Expected_finish_time - Simulator->Time();
@@ -498,10 +551,41 @@ namespace SSD_Components {
 		{
 		case CMD_READ_PAGE:
 		case CMD_READ_PAGE_MULTIPLANE:
+		case CMD_IFP_READ_DOT_PRODUCT:
+		case CMD_IFP_READ_DOT_PRODUCT_MULTIPLANE:
 			DEBUG("Chip " << chip->ChannelID << ", " << chip->ChipID << ": finished  read command")
 			chipBKE->No_of_active_dies--;
 			if (chipBKE->No_of_active_dies == 0)//After finishing the last command, the chip state is changed
 				chipBKE->Status = ChipStatus::WAIT_FOR_DATA_OUT;
+
+			// ECC checking for read/IFP transactions
+			if (_my_instance->ecc_engine != NULL && _my_instance->block_manager_ref != NULL) {
+				for (auto ecc_it = dieBKE->ActiveTransactions.begin(); ecc_it != dieBKE->ActiveTransactions.end(); ecc_it++) {
+					NVM_Transaction_Flash* tr = *ecc_it;
+					if (tr->Type == Transaction_Type::READ || tr->Type == Transaction_Type::IFP_GEMV) {
+						PlaneBookKeepingType* pbke = _my_instance->block_manager_ref->Get_plane_bookkeeping_entry(tr->Address);
+						Block_Pool_Slot_Type* block = &pbke->Blocks[tr->Address.BlockID];
+						int retry_count = _my_instance->ecc_engine->Attempt_correction(block->Read_count, block->Erase_count);
+						sim_time_type ecc_latency = _my_instance->ecc_engine->Get_ECC_latency(retry_count);
+						tr->STAT_execution_time += ecc_latency;
+						if (retry_count > 0) {
+							Stats::Total_ECC_retries += (unsigned long)retry_count;
+						}
+						if (retry_count < 0) {
+							Stats::Total_ECC_uncorrectable++;
+							Stats::Total_ECC_failures++;
+							// Trigger read-reclaim for this block
+							if (_my_instance->gc_wl_unit_ref != NULL) {
+								_my_instance->gc_wl_unit_ref->Check_read_reclaim_required(tr->Address, block->Read_count);
+							}
+						}
+						if (tr->Type == Transaction_Type::IFP_GEMV) {
+							((NVM_Transaction_Flash_IFP*)tr)->ECC_retry_count = (retry_count > 0) ? (unsigned int)retry_count : 0;
+							((NVM_Transaction_Flash_IFP*)tr)->ECC_retry_needed = (retry_count != 0);
+						}
+					}
+				}
+			}
 
 			for (std::list<NVM_Transaction_Flash*>::iterator it = dieBKE->ActiveTransactions.begin();
 				it != dieBKE->ActiveTransactions.end(); it++)
@@ -668,6 +752,12 @@ namespace SSD_Components {
 				Simulator->Register_sim_event(Simulator->Time() + bookKeepingEntry->DieInterleavedTime,
 					this, bookKeepingEntry, (int)NVDDR2_SimEventType::ERASE_SETUP_COMPLETED);
 				break;
+			case Transaction_Type::IFP_GEMV:
+				chip->StartCMDXfer();
+				bookKeepingTable[chip->ChannelID][chip->ChipID].Status = ChipStatus::CMD_IN;
+				Simulator->Register_sim_event(Simulator->Time() + bookKeepingEntry->DieInterleavedTime,
+					this, bookKeepingEntry, (int)NVDDR2_SimEventType::IFP_CMD_ADDR_TRANSFERRED);
+				break;
 			default:
 				PRINT_ERROR("NVMController_NVDDR2: Uknown flash transaction type!")
 		}
@@ -695,6 +785,10 @@ namespace SSD_Components {
 				case CMD_PROGRAM_PAGE_COPYBACK:
 				case CMD_PROGRAM_PAGE_COPYBACK_MULTIPLANE:
 					chipBKE->Status = ChipStatus::WRITING;
+					break;
+				case CMD_IFP_READ_DOT_PRODUCT:
+				case CMD_IFP_READ_DOT_PRODUCT_MULTIPLANE:
+					chipBKE->Status = ChipStatus::READING;
 					break;
 				case CMD_ERASE_BLOCK:
 				case CMD_ERASE_BLOCK_MULTIPLANE:
