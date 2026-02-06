@@ -50,6 +50,7 @@ namespace SSD_Components
 				switch (transaction->Type)
 				{
 					case Transaction_Type::READ:
+					case Transaction_Type::IFP_GEMV:
 						_my_instance->block_manager->Read_transaction_serviced(transaction->Address);
 						break;
 					case Transaction_Type::WRITE:
