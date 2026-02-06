@@ -22,10 +22,11 @@ namespace NVM
 			enum class Chip_Sim_Event_Type { COMMAND_FINISHED };
 		public:
 			Flash_Chip(const sim_object_id_type&, flash_channel_ID_type channelID, flash_chip_ID_type localChipID,
-				Flash_Technology_Type flash_technology, 
+				Flash_Technology_Type flash_technology,
 				unsigned int dieNo, unsigned int PlaneNoPerDie, unsigned int Block_no_per_plane, unsigned int Page_no_per_block,
 				sim_time_type *readLatency, sim_time_type *programLatency, sim_time_type eraseLatency,
 				sim_time_type suspendProgramLatency, sim_time_type suspendEraseLatency,
+				sim_time_type ifpDotProductLatency = 0, sim_time_type ifpEccDecodeLatency = 0,
 				sim_time_type commProtocolDelayRead = 20, sim_time_type commProtocolDelayWrite = 0, sim_time_type commProtocolDelayErase = 0);
 			~Flash_Chip();
 			flash_channel_ID_type ChannelID;
@@ -107,6 +108,9 @@ namespace NVM
 					case CMD_ERASE_BLOCK:
 					case CMD_ERASE_BLOCK_MULTIPLANE:
 						return _eraseLatency + _RBSignalDelayErase;
+					case CMD_IFP_READ_DOT_PRODUCT:
+					case CMD_IFP_READ_DOT_PRODUCT_MULTIPLANE:
+						return _readLatency[latencyType] + _ifpEccDecodeLatency + _ifpDotProductLatency + _RBSignalDelayRead;
 					default:
 						throw std::invalid_argument("Unsupported command for flash chip.");
 				}
@@ -129,6 +133,7 @@ namespace NVM
 			unsigned int page_no_per_block;                 //indicate how many pages in a block
 			sim_time_type *_readLatency, *_programLatency, _eraseLatency;
 			sim_time_type _suspendProgramLatency, _suspendEraseLatency;
+			sim_time_type _ifpDotProductLatency, _ifpEccDecodeLatency;
 			sim_time_type _RBSignalDelayRead, _RBSignalDelayWrite, _RBSignalDelayErase;
 			sim_time_type lastTransferStart;
 			sim_time_type executionStartTime, expectedFinishTime;
