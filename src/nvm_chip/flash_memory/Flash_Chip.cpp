@@ -8,13 +8,15 @@ namespace NVM
 	namespace FlashMemory
 	{
 		Flash_Chip::Flash_Chip(const sim_object_id_type& id, flash_channel_ID_type channelID, flash_chip_ID_type localChipID,
-			Flash_Technology_Type flash_technology, 
+			Flash_Technology_Type flash_technology,
 			unsigned int dieNo, unsigned int PlaneNoPerDie, unsigned int Block_no_per_plane, unsigned int Page_no_per_block,
 			sim_time_type* readLatency, sim_time_type* programLatency, sim_time_type eraseLatency,
 			sim_time_type suspendProgramLatency, sim_time_type suspendEraseLatency,
+			sim_time_type ifpDotProductLatency, sim_time_type ifpEccDecodeLatency,
 			sim_time_type commProtocolDelayRead, sim_time_type commProtocolDelayWrite, sim_time_type commProtocolDelayErase)
 			: NVM_Chip(id), ChannelID(channelID), ChipID(localChipID), flash_technology(flash_technology),
 			status(Internal_Status::IDLE), die_no(dieNo), plane_no_in_die(PlaneNoPerDie), block_no_in_plane(Block_no_per_plane), page_no_per_block(Page_no_per_block),
+			_ifpDotProductLatency(ifpDotProductLatency), _ifpEccDecodeLatency(ifpEccDecodeLatency),
 			_RBSignalDelayRead(commProtocolDelayRead), _RBSignalDelayWrite(commProtocolDelayWrite), _RBSignalDelayErase(commProtocolDelayErase),
 			lastTransferStart(INVALID_TIME), executionStartTime(INVALID_TIME), expectedFinishTime(INVALID_TIME),
 			STAT_readCount(0), STAT_progamCount(0), STAT_eraseCount(0),
@@ -152,6 +154,15 @@ namespace NVM
 				case CMD_READ_PAGE_COPYBACK:
 				case CMD_READ_PAGE_COPYBACK_MULTIPLANE:
 					DEBUG("Channel " << this->ChannelID << " Chip " << this->ChipID << "- Finished executing read command")
+					for (unsigned int planeCntr = 0; planeCntr < command->Address.size(); planeCntr++) {
+						STAT_readCount++;
+						targetDie->Planes[command->Address[planeCntr].PlaneID]->Read_count++;
+						targetDie->Planes[command->Address[planeCntr].PlaneID]->Blocks[command->Address[planeCntr].BlockID]->Pages[command->Address[planeCntr].PageID].Read_metadata(command->Meta_data[planeCntr]);
+					}
+					break;
+				case CMD_IFP_READ_DOT_PRODUCT:
+				case CMD_IFP_READ_DOT_PRODUCT_MULTIPLANE:
+					DEBUG("Channel " << this->ChannelID << " Chip " << this->ChipID << "- Finished executing IFP read-dot-product command")
 					for (unsigned int planeCntr = 0; planeCntr < command->Address.size(); planeCntr++) {
 						STAT_readCount++;
 						targetDie->Planes[command->Address[planeCntr].PlaneID]->Read_count++;
