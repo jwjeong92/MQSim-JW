@@ -3,6 +3,7 @@
 #include "Host_Interface_NVMe.h"
 #include "NVM_Transaction_Flash_RD.h"
 #include "NVM_Transaction_Flash_WR.h"
+#include "NVM_Transaction_Flash_IFP.h"
 
 namespace SSD_Components
 {
@@ -73,7 +74,7 @@ inline void Input_Stream_Manager_NVMe::Handle_new_arrived_request(User_Request *
 	{ //Circular queue implementation
 		((Input_Stream_NVMe *)input_streams[request->Stream_id])->Submission_head_informed_to_host = 0;
 	}
-	if (request->Type == UserRequestType::READ)
+	if (request->Type == UserRequestType::READ || request->Type == UserRequestType::IFP_GEMV)
 	{
 		((Input_Stream_NVMe *)input_streams[request->Stream_id])->Waiting_user_requests.push_back(request);
 		((Input_Stream_NVMe *)input_streams[request->Stream_id])->STAT_number_of_read_requests++;
@@ -103,8 +104,8 @@ inline void Input_Stream_Manager_NVMe::Handle_serviced_request(User_Request *req
 
 	DEBUG("** Host Interface: Request #" << request->ID << " from stream #" << request->Stream_id << " is finished")
 
-	//If this is a read request, then the read data should be written to host memory
-	if (request->Type == UserRequestType::READ)
+	//If this is a read or IFP_GEMV request, then the read data should be written to host memory
+	if (request->Type == UserRequestType::READ || request->Type == UserRequestType::IFP_GEMV)
 	{
 		((Host_Interface_NVMe *)host_interface)->request_fetch_unit->Send_read_data(request);
 	}
@@ -198,6 +199,13 @@ void Input_Stream_Manager_NVMe::segment_user_request(User_Request *user_request)
 		{
 			NVM_Transaction_Flash_RD *transaction = new NVM_Transaction_Flash_RD(Transaction_Source_Type::USERIO, user_request->Stream_id,
 																				 transaction_size * SECTOR_SIZE_IN_BYTE, lpa, NO_PPA, user_request, user_request->Priority_class, 0, access_status_bitmap, CurrentTimeStamp);
+			user_request->Transaction_list.push_back(transaction);
+			input_streams[user_request->Stream_id]->STAT_number_of_read_transactions++;
+		}
+		else if (user_request->Type == UserRequestType::IFP_GEMV)
+		{
+			NVM_Transaction_Flash_IFP *transaction = new NVM_Transaction_Flash_IFP(Transaction_Source_Type::USERIO, user_request->Stream_id,
+																				   transaction_size * SECTOR_SIZE_IN_BYTE, lpa, NO_PPA, user_request, user_request->Priority_class, 0, access_status_bitmap, CurrentTimeStamp);
 			user_request->Transaction_list.push_back(transaction);
 			input_streams[user_request->Stream_id]->STAT_number_of_read_transactions++;
 		}
@@ -302,6 +310,12 @@ void Request_Fetch_Unit_NVMe::Process_pcie_read_message(uint64_t address, void *
 		case NVME_WRITE_OPCODE:
 			new_request->Type = UserRequestType::WRITE;
 			new_request->Start_LBA = ((LHA_type)sqe->Command_specific[1]) << 31 | (LHA_type)sqe->Command_specific[0]; //Command Dword 10 and Command Dword 11
+			new_request->SizeInSectors = sqe->Command_specific[2] & (LHA_type)(0x0000ffff);
+			new_request->Size_in_byte = new_request->SizeInSectors * SECTOR_SIZE_IN_BYTE;
+			break;
+		case NVME_IFP_GEMV_OPCODE:
+			new_request->Type = UserRequestType::IFP_GEMV;
+			new_request->Start_LBA = ((LHA_type)sqe->Command_specific[1]) << 31 | (LHA_type)sqe->Command_specific[0];
 			new_request->SizeInSectors = sqe->Command_specific[2] & (LHA_type)(0x0000ffff);
 			new_request->Size_in_byte = new_request->SizeInSectors * SECTOR_SIZE_IN_BYTE;
 			break;
