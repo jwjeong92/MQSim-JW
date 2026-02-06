@@ -25,6 +25,12 @@ namespace SSD_Components
 	unsigned long Stats::Total_flash_reads_for_mapping_per_stream[MAX_SUPPORT_STREAMS] = { 0 };
 	unsigned long Stats::Total_flash_writes_for_mapping_per_stream[MAX_SUPPORT_STREAMS] = { 0 };
 	unsigned int***** Stats::Block_erase_histogram;
+
+	unsigned long Stats::IssuedIFPGemvCMD = 0;
+	unsigned long Stats::Total_read_reclaim_migrations = 0;
+	unsigned long Stats::Total_ECC_failures = 0;
+	unsigned long Stats::Total_ECC_retries = 0;
+	unsigned long Stats::Total_ECC_uncorrectable = 0;
 	unsigned int  Stats::CMT_hits = 0, Stats::readTR_CMT_hits = 0, Stats::writeTR_CMT_hits = 0;
 	unsigned int  Stats::CMT_miss = 0, Stats::readTR_CMT_miss = 0, Stats::writeTR_CMT_miss = 0;
 	unsigned int  Stats::total_CMT_queries = 0, Stats::total_readTR_CMT_queries = 0, Stats::total_writeTR_CMT_queries = 0;
@@ -72,6 +78,12 @@ namespace SSD_Components
 
 		Total_gc_executions = 0;  Total_page_movements_for_gc = 0;
 		Total_wl_executions = 0;  Total_page_movements_for_wl = 0;
+
+		IssuedIFPGemvCMD = 0;
+		Total_read_reclaim_migrations = 0;
+		Total_ECC_failures = 0;
+		Total_ECC_retries = 0;
+		Total_ECC_uncorrectable = 0;
 
 		for (stream_id_type stream_id = 0; stream_id < MAX_SUPPORT_STREAMS; stream_id++) {
 			Total_flash_reads_for_mapping_per_stream[stream_id] = 0;

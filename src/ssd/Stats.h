@@ -35,6 +35,14 @@ namespace SSD_Components
 		static unsigned int Total_page_movements_for_wl, Total_wl_page_movements_per_stream[MAX_SUPPORT_STREAMS];
 
 		static unsigned int***** Block_erase_histogram;
+
+		// IFP statistics
+		static unsigned long IssuedIFPGemvCMD;
+		// ECC/read-reclaim statistics (applies to both regular reads and IFP reads)
+		static unsigned long Total_read_reclaim_migrations;
+		static unsigned long Total_ECC_failures;
+		static unsigned long Total_ECC_retries;
+		static unsigned long Total_ECC_uncorrectable;
 	};
 }
 
