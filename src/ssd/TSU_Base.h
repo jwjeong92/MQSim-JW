@@ -83,6 +83,7 @@ protected:
 	std::list<NVM_Transaction_Flash *> transaction_receive_slots;  //Stores the transactions that are received for sheduling
 	std::list<NVM_Transaction_Flash *> transaction_dispatch_slots; //Used to submit transactions to the channel controller
 	virtual bool service_read_transaction(NVM::FlashMemory::Flash_Chip *chip) = 0;
+	virtual bool service_ifp_transaction(NVM::FlashMemory::Flash_Chip *chip) = 0;
 	virtual bool service_write_transaction(NVM::FlashMemory::Flash_Chip *chip) = 0;
 	virtual bool service_erase_transaction(NVM::FlashMemory::Flash_Chip *chip) = 0;
 	bool issue_command_to_chip(Flash_Transaction_Queue *sourceQueue1, Flash_Transaction_Queue *sourceQueue2, Transaction_Type transactionType, bool suspensionRequired);
@@ -93,8 +94,10 @@ protected:
 	void process_chip_requests(NVM::FlashMemory::Flash_Chip* chip)
 	{
 		if (!_my_instance->service_read_transaction(chip)) {
-			if (!_my_instance->service_write_transaction(chip)) {
-				_my_instance->service_erase_transaction(chip);
+			if (!_my_instance->service_ifp_transaction(chip)) {
+				if (!_my_instance->service_write_transaction(chip)) {
+					_my_instance->service_erase_transaction(chip);
+				}
 			}
 		}
 	}
@@ -105,6 +108,8 @@ private:
 		switch (transaction->Type)
 		{
 		case Transaction_Type::READ:
+			return true;
+		case Transaction_Type::IFP_GEMV:
 			return true;
 		case Transaction_Type::WRITE:
 			return static_cast<NVM_Transaction_Flash_WR*>(transaction)->RelatedRead == NULL;
