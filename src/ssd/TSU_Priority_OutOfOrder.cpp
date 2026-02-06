@@ -265,6 +265,25 @@ void TSU_Priority_OutOfOrder::Schedule()
                 PRINT_ERROR("TSU_OutOfOrder: unknown source type for a write transaction!")
             }
             break;
+        case Transaction_Type::IFP_GEMV:
+            // IFP transactions are routed to read queue with their priority class
+            switch ((*it)->Source)
+            {
+            case Transaction_Source_Type::CACHE:
+            case Transaction_Source_Type::USERIO:
+                if ((*it)->Priority_class != IO_Flow_Priority_Class::UNDEFINED)
+                {
+                    UserReadTRQueue[(*it)->Address.ChannelID][(*it)->Address.ChipID][static_cast<int>((*it)->Priority_class)].push_back((*it));
+                }
+                else
+                {
+                    UserReadTRQueue[(*it)->Address.ChannelID][(*it)->Address.ChipID][IO_Flow_Priority_Class::HIGH].push_back((*it));
+                }
+                break;
+            default:
+                break;
+            }
+            break;
         case Transaction_Type::ERASE:
             GCEraseTRQueue[(*it)->Address.ChannelID][(*it)->Address.ChipID].push_back((*it));
             break;
@@ -283,9 +302,12 @@ void TSU_Priority_OutOfOrder::Schedule()
                 //The TSU does not check if the chip is idle or not since it is possible to suspend a busy chip and issue a new command
                 if (!service_read_transaction(chip))
                 {
-                    if (!service_write_transaction(chip))
+                    if (!service_ifp_transaction(chip))
                     {
-                        service_erase_transaction(chip);
+                        if (!service_write_transaction(chip))
+                        {
+                            service_erase_transaction(chip);
+                        }
                     }
                 }
                 Round_robin_turn_of_channel[channelID] = (flash_chip_ID_type)(Round_robin_turn_of_channel[channelID] + 1) % chip_no_per_channel;
@@ -466,6 +488,14 @@ Flash_Transaction_Queue *TSU_Priority_OutOfOrder::get_next_write_service_queue(N
     }
 
     return NULL;
+}
+
+bool TSU_Priority_OutOfOrder::service_ifp_transaction(NVM::FlashMemory::Flash_Chip *chip)
+{
+    // IFP transactions are routed to read queues in Schedule(), so they are
+    // serviced by service_read_transaction(). This method exists to satisfy
+    // the pure virtual in TSU_Base.
+    return false;
 }
 
 bool TSU_Priority_OutOfOrder::service_write_transaction(NVM::FlashMemory::Flash_Chip *chip)
