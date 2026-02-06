@@ -102,6 +102,10 @@ namespace SSD_Components
 				default:
 					PRINT_ERROR("The specified caching mode is not not support in simple cache manager!")
 			}
+		} else if (user_request->Type == UserRequestType::IFP_GEMV) {
+			// IFP_GEMV bypasses cache, dispatch directly to FTL
+			static_cast<FTL*>(nvm_firmware)->Address_Mapping_Unit->Translate_lpa_to_ppa_and_dispatch(user_request->Transaction_list);
+			return;
 		} else {//This is a write request
 			switch (caching_mode_per_input_stream[user_request->Stream_id])
 			{
@@ -238,6 +242,12 @@ namespace SSD_Components
 					break;
 				default:
 					PRINT_ERROR("The specified caching mode is not not support in simple cache manager!")
+			}
+		} else if (transaction->Type == Transaction_Type::IFP_GEMV) {
+			// IFP_GEMV: remove from list and signal completion (no cache interaction)
+			transaction->UserIORequest->Transaction_list.remove(transaction);
+			if (_my_instance->is_user_request_finished(transaction->UserIORequest)) {
+				_my_instance->broadcast_user_request_serviced_signal(transaction->UserIORequest);
 			}
 		} else { //This is a write request
 			switch (Data_Cache_Manager_Flash_Simple::caching_mode_per_input_stream[transaction->Stream_id])
