@@ -89,7 +89,8 @@ SSD_Device::SSD_Device(Device_Parameter_Set *parameters, std::vector<IO_Flow_Par
 																		channel_cntr, chip_cntr, parameters->Flash_Parameters.Flash_Technology, parameters->Flash_Parameters.Die_No_Per_Chip, parameters->Flash_Parameters.Plane_No_Per_Die,
 																		parameters->Flash_Parameters.Block_No_Per_Plane, parameters->Flash_Parameters.Page_No_Per_Block,
 																		read_latencies, write_latencies, parameters->Flash_Parameters.Block_Erase_Latency,
-																		parameters->Flash_Parameters.Suspend_Program_Time, parameters->Flash_Parameters.Suspend_Erase_Time);
+																		parameters->Flash_Parameters.Suspend_Program_Time, parameters->Flash_Parameters.Suspend_Erase_Time,
+																		parameters->Flash_Parameters.IFP_Dot_Product_Latency, parameters->Flash_Parameters.IFP_ECC_Decode_Latency);
 					Simulator->AddObject(chips[chip_cntr]); //Each simulation object (a child of MQSimEngine::Sim_Object) should be added to the engine
 				}
 				channels[channel_cntr] = new SSD_Components::ONFI_Channel_NVDDR2(channel_cntr, parameters->Chip_No_Per_Channel,
@@ -312,6 +313,11 @@ SSD_Device::SSD_Device(Device_Parameter_Set *parameters, std::vector<IO_Flow_Par
 		Simulator->AddObject(gcwl);
 		fbm->Set_GC_and_WL_Unit(gcwl);
 		ftl->GC_and_WL_Unit = gcwl;
+
+		// Wire ECC engine and block manager into PHY for ECC checking in handle_ready_signal
+		static_cast<SSD_Components::NVM_PHY_ONFI_NVDDR2*>(device->PHY)->ecc_engine = ftl->ECC;
+		static_cast<SSD_Components::NVM_PHY_ONFI_NVDDR2*>(device->PHY)->block_manager_ref = fbm;
+		static_cast<SSD_Components::NVM_PHY_ONFI_NVDDR2*>(device->PHY)->gc_wl_unit_ref = gcwl;
 
 		//Step 9: create Data_Cache_Manager
 		SSD_Components::Data_Cache_Manager_Base *dcm;
