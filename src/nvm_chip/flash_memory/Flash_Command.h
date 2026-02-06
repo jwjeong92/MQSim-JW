@@ -21,6 +21,9 @@
 #define CMD_PROGRAM_PAGE_COPYBACK_MULTIPLANE 0x85111 //since the codes of multiplane copyback (i.e., 0x8511) and multiplane program (i.e., 0x8511) are identical, we change the code of multiplane copyback 0x8511 to 0x85111 so that we can differentiate copyback multiplane from normal multiplane
 //#define CMD_SUSPEND_PROGRAM 0x86
 //#define CMD_RESUME_PROGRAM 0xD1
+#define CMD_IFP_READ_DOT_PRODUCT 0xA000
+#define CMD_IFP_READ_DOT_PRODUCT_MULTIPLANE 0xA001
+
 #define CMD_ERASE 0x6000
 #define CMD_ERASE_BLOCK 0x60D0
 #define CMD_ERASE_BLOCK_MULTIPLANE 0x60D1
