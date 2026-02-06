@@ -15,6 +15,7 @@ TSU_OutOfOrder::TSU_OutOfOrder(const sim_object_id_type &id, FTL *ftl, NVM_PHY_O
 {
 	UserReadTRQueue = new Flash_Transaction_Queue *[channel_count];
 	UserWriteTRQueue = new Flash_Transaction_Queue *[channel_count];
+	UserIFPTRQueue = new Flash_Transaction_Queue *[channel_count];
 	GCReadTRQueue = new Flash_Transaction_Queue *[channel_count];
 	GCWriteTRQueue = new Flash_Transaction_Queue *[channel_count];
 	GCEraseTRQueue = new Flash_Transaction_Queue *[channel_count];
@@ -24,6 +25,7 @@ TSU_OutOfOrder::TSU_OutOfOrder(const sim_object_id_type &id, FTL *ftl, NVM_PHY_O
 	{
 		UserReadTRQueue[channelID] = new Flash_Transaction_Queue[chip_no_per_channel];
 		UserWriteTRQueue[channelID] = new Flash_Transaction_Queue[chip_no_per_channel];
+		UserIFPTRQueue[channelID] = new Flash_Transaction_Queue[chip_no_per_channel];
 		GCReadTRQueue[channelID] = new Flash_Transaction_Queue[chip_no_per_channel];
 		GCWriteTRQueue[channelID] = new Flash_Transaction_Queue[chip_no_per_channel];
 		GCEraseTRQueue[channelID] = new Flash_Transaction_Queue[chip_no_per_channel];
@@ -33,6 +35,7 @@ TSU_OutOfOrder::TSU_OutOfOrder(const sim_object_id_type &id, FTL *ftl, NVM_PHY_O
 		{
 			UserReadTRQueue[channelID][chip_cntr].Set_id("User_Read_TR_Queue@" + std::to_string(channelID) + "@" + std::to_string(chip_cntr));
 			UserWriteTRQueue[channelID][chip_cntr].Set_id("User_Write_TR_Queue@" + std::to_string(channelID) + "@" + std::to_string(chip_cntr));
+			UserIFPTRQueue[channelID][chip_cntr].Set_id("User_IFP_TR_Queue@" + std::to_string(channelID) + "@" + std::to_string(chip_cntr));
 			GCReadTRQueue[channelID][chip_cntr].Set_id("GC_Read_TR_Queue@" + std::to_string(channelID) + "@" + std::to_string(chip_cntr));
 			MappingReadTRQueue[channelID][chip_cntr].Set_id("Mapping_Read_TR_Queue@" + std::to_string(channelID) + "@" + std::to_string(chip_cntr));
 			MappingWriteTRQueue[channelID][chip_cntr].Set_id("Mapping_Write_TR_Queue@" + std::to_string(channelID) + "@" + std::to_string(chip_cntr));
@@ -48,6 +51,7 @@ TSU_OutOfOrder::~TSU_OutOfOrder()
 	{
 		delete[] UserReadTRQueue[channelID];
 		delete[] UserWriteTRQueue[channelID];
+		delete[] UserIFPTRQueue[channelID];
 		delete[] GCReadTRQueue[channelID];
 		delete[] GCWriteTRQueue[channelID];
 		delete[] GCEraseTRQueue[channelID];
@@ -56,6 +60,7 @@ TSU_OutOfOrder::~TSU_OutOfOrder()
 	}
 	delete[] UserReadTRQueue;
 	delete[] UserWriteTRQueue;
+	delete[] UserIFPTRQueue;
 	delete[] GCReadTRQueue;
 	delete[] GCWriteTRQueue;
 	delete[] GCEraseTRQueue;
@@ -95,6 +100,14 @@ void TSU_OutOfOrder::Report_results_in_XML(std::string name_prefix, Utils::XmlWr
 		for (unsigned int chip_cntr = 0; chip_cntr < chip_no_per_channel; chip_cntr++)
 		{
 			UserWriteTRQueue[channelID][chip_cntr].Report_results_in_XML(name_prefix + ".User_Write_TR_Queue", xmlwriter);
+		}
+	}
+
+	for (unsigned int channelID = 0; channelID < channel_count; channelID++)
+	{
+		for (unsigned int chip_cntr = 0; chip_cntr < chip_no_per_channel; chip_cntr++)
+		{
+			UserIFPTRQueue[channelID][chip_cntr].Report_results_in_XML(name_prefix + ".User_IFP_TR_Queue", xmlwriter);
 		}
 	}
 
@@ -196,6 +209,9 @@ void TSU_OutOfOrder::Schedule()
 			default:
 				PRINT_ERROR("TSU_OutOfOrder: unknown source type for a write transaction!")
 			}
+			break;
+		case Transaction_Type::IFP_GEMV:
+			UserIFPTRQueue[(*it)->Address.ChannelID][(*it)->Address.ChipID].push_back((*it));
 			break;
 		case Transaction_Type::ERASE:
 			GCEraseTRQueue[(*it)->Address.ChannelID][(*it)->Address.ChipID].push_back((*it));
@@ -327,6 +343,50 @@ bool TSU_OutOfOrder::service_read_transaction(NVM::FlashMemory::Flash_Chip *chip
 	}
 
 	issue_command_to_chip(sourceQueue1, sourceQueue2, Transaction_Type::READ, suspensionRequired);
+
+	return true;
+}
+
+bool TSU_OutOfOrder::service_ifp_transaction(NVM::FlashMemory::Flash_Chip *chip)
+{
+	if (UserIFPTRQueue[chip->ChannelID][chip->ChipID].size() == 0)
+	{
+		return false;
+	}
+
+	Flash_Transaction_Queue *sourceQueue1 = &UserIFPTRQueue[chip->ChannelID][chip->ChipID];
+
+	bool suspensionRequired = false;
+	ChipStatus cs = _NVMController->GetChipStatus(chip);
+	switch (cs)
+	{
+	case ChipStatus::IDLE:
+		break;
+	case ChipStatus::WRITING:
+		if (!programSuspensionEnabled || _NVMController->HasSuspendedCommand(chip))
+		{
+			return false;
+		}
+		if (_NVMController->Expected_finish_time(chip) - Simulator->Time() < writeReasonableSuspensionTimeForRead)
+		{
+			return false;
+		}
+		suspensionRequired = true;
+	case ChipStatus::ERASING:
+		if (!eraseSuspensionEnabled || _NVMController->HasSuspendedCommand(chip))
+		{
+			return false;
+		}
+		if (_NVMController->Expected_finish_time(chip) - Simulator->Time() < eraseReasonableSuspensionTimeForRead)
+		{
+			return false;
+		}
+		suspensionRequired = true;
+	default:
+		return false;
+	}
+
+	issue_command_to_chip(sourceQueue1, NULL, Transaction_Type::IFP_GEMV, suspensionRequired);
 
 	return true;
 }
