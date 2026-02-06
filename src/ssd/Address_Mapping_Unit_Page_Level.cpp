@@ -3,6 +3,7 @@
 #include <stdexcept>
 
 #include "Address_Mapping_Unit_Page_Level.h"
+#include "NVM_Transaction_Flash_IFP.h"
 #include "Stats.h"
 #include "../utils/Logical_Address_Partitioning_Unit.h"
 
@@ -517,7 +518,7 @@ namespace SSD_Components
 		{
 			Stats::CMT_hits_per_stream[stream_id]++;
 			Stats::CMT_hits++;
-			if (transaction->Type == Transaction_Type::READ) {
+			if (transaction->Type == Transaction_Type::READ || transaction->Type == Transaction_Type::IFP_GEMV) {
 				Stats::total_readTR_CMT_queries_per_stream[stream_id]++;
 				Stats::total_readTR_CMT_queries++;
 				Stats::readTR_CMT_hits_per_stream[stream_id]++;
@@ -541,7 +542,7 @@ namespace SSD_Components
 			if (request_mapping_entry(stream_id, transaction->LPA)) {
 				Stats::CMT_miss++;
 				Stats::CMT_miss_per_stream[stream_id]++;
-				if (transaction->Type == Transaction_Type::READ) {
+				if (transaction->Type == Transaction_Type::READ || transaction->Type == Transaction_Type::IFP_GEMV) {
 					Stats::total_readTR_CMT_queries++;
 					Stats::total_readTR_CMT_queries_per_stream[stream_id]++;
 					Stats::readTR_CMT_miss++;
@@ -559,7 +560,7 @@ namespace SSD_Components
 					return false;
 				}
 			} else {
-				if (transaction->Type == Transaction_Type::READ) {
+				if (transaction->Type == Transaction_Type::READ || transaction->Type == Transaction_Type::IFP_GEMV) {
 					Stats::total_readTR_CMT_queries++;
 					Stats::total_readTR_CMT_queries_per_stream[stream_id]++;
 					Stats::readTR_CMT_miss++;
@@ -585,15 +586,21 @@ namespace SSD_Components
 	{
 		PPA_type ppa = domains[streamID]->Get_ppa(ideal_mapping_table, streamID, transaction->LPA);
 
-		if (transaction->Type == Transaction_Type::READ) {
+		if (transaction->Type == Transaction_Type::READ || transaction->Type == Transaction_Type::IFP_GEMV) {
 			if (ppa == NO_PPA) {
-				ppa = online_create_entry_for_reads(transaction->LPA, streamID, transaction->Address, ((NVM_Transaction_Flash_RD*)transaction)->read_sectors_bitmap);
+				page_status_type sectors_bitmap;
+				if (transaction->Type == Transaction_Type::IFP_GEMV) {
+					sectors_bitmap = ((NVM_Transaction_Flash_IFP*)transaction)->read_sectors_bitmap;
+				} else {
+					sectors_bitmap = ((NVM_Transaction_Flash_RD*)transaction)->read_sectors_bitmap;
+				}
+				ppa = online_create_entry_for_reads(transaction->LPA, streamID, transaction->Address, sectors_bitmap);
 			}
 			transaction->PPA = ppa;
 			Convert_ppa_to_address(transaction->PPA, transaction->Address);
 			block_manager->Read_transaction_issued(transaction->Address);
 			transaction->Physical_address_determined = true;
-			
+
 			return true;
 		} else {//This is a write transaction
 			allocate_plane_for_user_write((NVM_Transaction_Flash_WR*)transaction);
