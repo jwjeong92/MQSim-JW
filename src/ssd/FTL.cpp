@@ -25,11 +25,22 @@ namespace SSD_Components
 		over_provisioning_ratio(over_provisioning_ratio), max_allowed_block_erase_count(max_allowed_block_erase_count)
 	{
 		Stats::Init_stats(channel_no, chip_no_per_channel, die_no_per_chip, plane_no_per_die, block_no_per_plane, page_no_per_block, max_allowed_block_erase_count);
+
+		// ECC Engine: RBER model parameters
+		// base_rber=1e-9, read_factor=1e-10, erase_factor=1e-8
+		// page_size_bits = page_no_per_block is not page size; use page_size_in_sectors * SECTOR_SIZE * 8
+		unsigned int page_size_bits = page_size_in_sectors * SECTOR_SIZE_IN_BYTE * 8;
+		ECC = new ECC_Engine(1e-9, 1e-10, 1e-8, page_size_bits, 40, 5000, 3);
+
+		// IFP Aggregation Unit: controller-level mode, 100ns DRAM access per partial result
+		Aggregation_Unit = new IFP_Aggregation_Unit(IFP_Aggregation_Mode::CONTROLLER_LEVEL, 100);
 	}
 
 	FTL::~FTL()
 	{
 		Stats::Clear_stats(channel_no, chip_no_per_channel, die_no_per_chip, plane_no_per_die, block_no_per_plane, page_no_per_block, max_allowed_block_erase_count);
+		delete ECC;
+		delete Aggregation_Unit;
 	}
 
 	void FTL::Validate_simulation_config()
@@ -883,6 +894,26 @@ namespace SSD_Components
 
 		attr = "Average_Page_Movement_For_WL";
 		val = std::to_string(double(Stats::Total_page_movements_for_wl) / double(Stats::Total_wl_executions));
+		xmlwriter.Write_attribute_string_inline(attr, val);
+
+		attr = "Issued_IFP_GEMV_CMD";
+		val = std::to_string(Stats::IssuedIFPGemvCMD);
+		xmlwriter.Write_attribute_string_inline(attr, val);
+
+		attr = "Total_ECC_Retries";
+		val = std::to_string(Stats::Total_ECC_retries);
+		xmlwriter.Write_attribute_string_inline(attr, val);
+
+		attr = "Total_ECC_Failures";
+		val = std::to_string(Stats::Total_ECC_failures);
+		xmlwriter.Write_attribute_string_inline(attr, val);
+
+		attr = "Total_ECC_Uncorrectable";
+		val = std::to_string(Stats::Total_ECC_uncorrectable);
+		xmlwriter.Write_attribute_string_inline(attr, val);
+
+		attr = "Total_Read_Reclaim_Migrations";
+		val = std::to_string(Stats::Total_read_reclaim_migrations);
 		xmlwriter.Write_attribute_string_inline(attr, val);
 
 		xmlwriter.Write_end_element_tag();
