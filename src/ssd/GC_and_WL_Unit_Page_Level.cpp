@@ -4,6 +4,7 @@
 #include "GC_and_WL_Unit_Page_Level.h"
 #include "Flash_Block_Manager.h"
 #include "FTL.h"
+#include "Stats.h"
 
 namespace SSD_Components
 {
@@ -189,4 +190,67 @@ namespace SSD_Components
 			}
 		}
 	}
+
+	void GC_and_WL_Unit_Page_Level::Check_read_reclaim_required(const NVM::FlashMemory::Physical_Page_Address& block_address, unsigned int read_count)
+	{
+		// Read-reclaim threshold: if a block's cumulative read count exceeds this,
+		// migrate valid pages and erase the block to prevent read-disturb errors.
+		const unsigned int READ_RECLAIM_THRESHOLD = 100000;
+
+		if (read_count < READ_RECLAIM_THRESHOLD) {
+			return;
+		}
+
+		PlaneBookKeepingType* pbke = block_manager->Get_plane_bookkeeping_entry(block_address);
+		Block_Pool_Slot_Type* block = &pbke->Blocks[block_address.BlockID];
+
+		// Don't reclaim if block already has ongoing GC/WL or is being erased
+		if (block->Has_ongoing_gc_wl) {
+			return;
+		}
+		if (pbke->Ongoing_erase_operations.find(block_address.BlockID) != pbke->Ongoing_erase_operations.end()) {
+			return;
+		}
+		if (pbke->Ongoing_erase_operations.size() >= max_ongoing_gc_reqs_per_plane) {
+			return;
+		}
+		if (!is_safe_gc_wl_candidate(pbke, block_address.BlockID)) {
+			return;
+		}
+
+		// Initiate read-reclaim: same logic as GC page movement
+		NVM::FlashMemory::Physical_Page_Address reclaim_address(block_address);
+		block_manager->GC_WL_started(reclaim_address);
+		pbke->Ongoing_erase_operations.insert(block_address.BlockID);
+		address_mapping_unit->Set_barrier_for_accessing_physical_block(reclaim_address);
+
+		if (block_manager->Can_execute_gc_wl(reclaim_address)) {
+			Stats::Total_read_reclaim_migrations++;
+			tsu->Prepare_for_transaction_submit();
+
+			NVM_Transaction_Flash_ER* erase_tr = new NVM_Transaction_Flash_ER(Transaction_Source_Type::GC_WL, block->Stream_id, reclaim_address);
+
+			// Move valid pages
+			if (block->Current_page_write_index - block->Invalid_page_count > 0) {
+				for (flash_page_ID_type pageID = 0; pageID < block->Current_page_write_index; pageID++) {
+					if (block_manager->Is_page_valid(block, pageID)) {
+						reclaim_address.PageID = pageID;
+						NVM_Transaction_Flash_RD* gc_read = new NVM_Transaction_Flash_RD(Transaction_Source_Type::GC_WL, block->Stream_id, sector_no_per_page * SECTOR_SIZE_IN_BYTE,
+							NO_LPA, address_mapping_unit->Convert_address_to_ppa(reclaim_address), reclaim_address, NULL, 0, NULL, 0, INVALID_TIME_STAMP);
+						NVM_Transaction_Flash_WR* gc_write = new NVM_Transaction_Flash_WR(Transaction_Source_Type::GC_WL, block->Stream_id, sector_no_per_page * SECTOR_SIZE_IN_BYTE,
+							NO_LPA, NO_PPA, reclaim_address, NULL, 0, gc_read, 0, INVALID_TIME_STAMP);
+						gc_write->ExecutionMode = WriteExecutionModeType::SIMPLE;
+						gc_write->RelatedErase = erase_tr;
+						gc_read->RelatedWrite = gc_write;
+						tsu->Submit_transaction(gc_read);
+						erase_tr->Page_movement_activities.push_back(gc_write);
+					}
+				}
+			}
+			block->Erase_transaction = erase_tr;
+			tsu->Submit_transaction(erase_tr);
+			tsu->Schedule();
+		}
+	}
+
 }
