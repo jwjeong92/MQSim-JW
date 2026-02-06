@@ -45,6 +45,7 @@ public:
 private:
 	Flash_Transaction_Queue **UserReadTRQueue;
 	Flash_Transaction_Queue **UserWriteTRQueue;
+	Flash_Transaction_Queue **UserIFPTRQueue;
 	Flash_Transaction_Queue **GCReadTRQueue;
 	Flash_Transaction_Queue **GCWriteTRQueue;
 	Flash_Transaction_Queue **GCEraseTRQueue;
@@ -52,6 +53,7 @@ private:
 	Flash_Transaction_Queue **MappingWriteTRQueue;
 
 	bool service_read_transaction(NVM::FlashMemory::Flash_Chip *chip);
+	bool service_ifp_transaction(NVM::FlashMemory::Flash_Chip *chip);
 	bool service_write_transaction(NVM::FlashMemory::Flash_Chip *chip);
 	bool service_erase_transaction(NVM::FlashMemory::Flash_Chip *chip);
 };
