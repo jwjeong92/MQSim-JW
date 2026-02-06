@@ -9,15 +9,19 @@
 #include "NVM_PHY_ONFI.h"
 #include "ONFI_Channel_NVDDR2.h"
 #include "Flash_Transaction_Queue.h"
+#include "ECC_Engine.h"
 
 namespace SSD_Components
 {
+	class Flash_Block_Manager_Base;
+	class GC_and_WL_Unit_Base;
 	enum class NVDDR2_SimEventType
 	{
 		READ_DATA_TRANSFERRED, READ_CMD_ADDR_TRANSFERRED,
-		PROGRAM_CMD_ADDR_DATA_TRANSFERRED, 
-		PROGRAM_COPYBACK_CMD_ADDR_TRANSFERRED, 
-		ERASE_SETUP_COMPLETED
+		PROGRAM_CMD_ADDR_DATA_TRANSFERRED,
+		PROGRAM_COPYBACK_CMD_ADDR_TRANSFERRED,
+		ERASE_SETUP_COMPLETED,
+		IFP_CMD_ADDR_TRANSFERRED
 	};
 
 	class DieBookKeepingEntry
@@ -95,6 +99,9 @@ namespace SSD_Components
 		void Start_simulation();
 
 		void Send_command_to_chip(std::list<NVM_Transaction_Flash*>& transactionList);
+		ECC_Engine* ecc_engine;
+		Flash_Block_Manager_Base* block_manager_ref;
+		GC_and_WL_Unit_Base* gc_wl_unit_ref;
 		void Change_flash_page_status_for_preconditioning(const NVM::FlashMemory::Physical_Page_Address& page_address, const LPA_type lpa);
 		void Execute_simulator_event(MQSimEngine::Sim_Event*);
 		BusChannelStatus Get_channel_status(flash_channel_ID_type channelID);
