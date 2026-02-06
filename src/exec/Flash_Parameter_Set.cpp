@@ -22,6 +22,21 @@ unsigned int Flash_Parameter_Set::Page_No_Per_Block = 256;//Page no per block
 unsigned int Flash_Parameter_Set::Page_Capacity = 8192;//Flash page capacity in bytes
 unsigned int Flash_Parameter_Set::Page_Metadat_Capacity = 1872;//Flash page capacity in bytes
 
+// IFP defaults
+bool Flash_Parameter_Set::IFP_Enabled = false;
+sim_time_type Flash_Parameter_Set::IFP_Dot_Product_Latency = 5000;//5 us in nano-seconds
+sim_time_type Flash_Parameter_Set::IFP_ECC_Decode_Latency = 10000;//10 us in nano-seconds
+sim_time_type Flash_Parameter_Set::IFP_ECC_Retry_Latency = 50000;//50 us in nano-seconds
+unsigned int Flash_Parameter_Set::IFP_ECC_Max_Retries = 3;
+unsigned int Flash_Parameter_Set::Read_Reclaim_Threshold = 100000;
+double Flash_Parameter_Set::ECC_Base_RBER = 1e-9;
+double Flash_Parameter_Set::ECC_Read_Count_Factor = 1e-12;
+double Flash_Parameter_Set::ECC_PE_Cycle_Factor = 1e-10;
+double Flash_Parameter_Set::ECC_Retention_Factor = 1e-20;
+unsigned int Flash_Parameter_Set::ECC_Correction_Capability = 40;//40 bits per 1 KiB codeword
+unsigned int Flash_Parameter_Set::ECC_Codeword_Size = 1024;//1 KiB
+unsigned int Flash_Parameter_Set::IFP_Aggregation_Mode = 0;
+
 void Flash_Parameter_Set::XML_serialize(Utils::XmlWriter& xmlwriter)
 {
 	std::string tmp;
@@ -128,6 +143,58 @@ void Flash_Parameter_Set::XML_serialize(Utils::XmlWriter& xmlwriter)
 	val = std::to_string(Page_Metadat_Capacity);
 	xmlwriter.Write_attribute_string(attr, val);
 
+	attr = "IFP_Enabled";
+	val = IFP_Enabled ? "true" : "false";
+	xmlwriter.Write_attribute_string(attr, val);
+
+	attr = "IFP_Dot_Product_Latency";
+	val = std::to_string(IFP_Dot_Product_Latency);
+	xmlwriter.Write_attribute_string(attr, val);
+
+	attr = "IFP_ECC_Decode_Latency";
+	val = std::to_string(IFP_ECC_Decode_Latency);
+	xmlwriter.Write_attribute_string(attr, val);
+
+	attr = "IFP_ECC_Retry_Latency";
+	val = std::to_string(IFP_ECC_Retry_Latency);
+	xmlwriter.Write_attribute_string(attr, val);
+
+	attr = "IFP_ECC_Max_Retries";
+	val = std::to_string(IFP_ECC_Max_Retries);
+	xmlwriter.Write_attribute_string(attr, val);
+
+	attr = "Read_Reclaim_Threshold";
+	val = std::to_string(Read_Reclaim_Threshold);
+	xmlwriter.Write_attribute_string(attr, val);
+
+	attr = "ECC_Base_RBER";
+	val = std::to_string(ECC_Base_RBER);
+	xmlwriter.Write_attribute_string(attr, val);
+
+	attr = "ECC_Read_Count_Factor";
+	val = std::to_string(ECC_Read_Count_Factor);
+	xmlwriter.Write_attribute_string(attr, val);
+
+	attr = "ECC_PE_Cycle_Factor";
+	val = std::to_string(ECC_PE_Cycle_Factor);
+	xmlwriter.Write_attribute_string(attr, val);
+
+	attr = "ECC_Retention_Factor";
+	val = std::to_string(ECC_Retention_Factor);
+	xmlwriter.Write_attribute_string(attr, val);
+
+	attr = "ECC_Correction_Capability";
+	val = std::to_string(ECC_Correction_Capability);
+	xmlwriter.Write_attribute_string(attr, val);
+
+	attr = "ECC_Codeword_Size";
+	val = std::to_string(ECC_Codeword_Size);
+	xmlwriter.Write_attribute_string(attr, val);
+
+	attr = "IFP_Aggregation_Mode";
+	val = std::to_string(IFP_Aggregation_Mode);
+	xmlwriter.Write_attribute_string(attr, val);
+
 	xmlwriter.Write_close_tag();
 }
 
@@ -207,6 +274,46 @@ void Flash_Parameter_Set::XML_deserialize(rapidxml::xml_node<> *node)
 			} else if (strcmp(param->name(), "Page_Metadat_Capacity") == 0) {
 				std::string val = param->value();
 				Page_Metadat_Capacity = std::stoul(val);
+			} else if (strcmp(param->name(), "IFP_Enabled") == 0) {
+				std::string val = param->value();
+				std::transform(val.begin(), val.end(), val.begin(), ::toupper);
+				IFP_Enabled = (strcmp(val.c_str(), "TRUE") == 0);
+			} else if (strcmp(param->name(), "IFP_Dot_Product_Latency") == 0) {
+				std::string val = param->value();
+				IFP_Dot_Product_Latency = std::stoull(val);
+			} else if (strcmp(param->name(), "IFP_ECC_Decode_Latency") == 0) {
+				std::string val = param->value();
+				IFP_ECC_Decode_Latency = std::stoull(val);
+			} else if (strcmp(param->name(), "IFP_ECC_Retry_Latency") == 0) {
+				std::string val = param->value();
+				IFP_ECC_Retry_Latency = std::stoull(val);
+			} else if (strcmp(param->name(), "IFP_ECC_Max_Retries") == 0) {
+				std::string val = param->value();
+				IFP_ECC_Max_Retries = std::stoul(val);
+			} else if (strcmp(param->name(), "Read_Reclaim_Threshold") == 0) {
+				std::string val = param->value();
+				Read_Reclaim_Threshold = std::stoul(val);
+			} else if (strcmp(param->name(), "ECC_Base_RBER") == 0) {
+				std::string val = param->value();
+				ECC_Base_RBER = std::stod(val);
+			} else if (strcmp(param->name(), "ECC_Read_Count_Factor") == 0) {
+				std::string val = param->value();
+				ECC_Read_Count_Factor = std::stod(val);
+			} else if (strcmp(param->name(), "ECC_PE_Cycle_Factor") == 0) {
+				std::string val = param->value();
+				ECC_PE_Cycle_Factor = std::stod(val);
+			} else if (strcmp(param->name(), "ECC_Retention_Factor") == 0) {
+				std::string val = param->value();
+				ECC_Retention_Factor = std::stod(val);
+			} else if (strcmp(param->name(), "ECC_Correction_Capability") == 0) {
+				std::string val = param->value();
+				ECC_Correction_Capability = std::stoul(val);
+			} else if (strcmp(param->name(), "ECC_Codeword_Size") == 0) {
+				std::string val = param->value();
+				ECC_Codeword_Size = std::stoul(val);
+			} else if (strcmp(param->name(), "IFP_Aggregation_Mode") == 0) {
+				std::string val = param->value();
+				IFP_Aggregation_Mode = std::stoul(val);
 			}
 		}
 	} catch (...) {

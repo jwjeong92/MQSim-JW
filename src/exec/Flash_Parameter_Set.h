@@ -26,6 +26,23 @@ public:
 	static unsigned int Page_No_Per_Block;//Page no per block
 	static unsigned int Page_Capacity;//Flash page capacity in bytes
 	static unsigned int Page_Metadat_Capacity;//Flash page metadata capacity in bytes
+
+	// IFP (In-Flash Processing) parameters
+	static bool IFP_Enabled;
+	static sim_time_type IFP_Dot_Product_Latency;//in nano-seconds
+	static sim_time_type IFP_ECC_Decode_Latency;//in nano-seconds
+	static sim_time_type IFP_ECC_Retry_Latency;//in nano-seconds
+	static unsigned int IFP_ECC_Max_Retries;
+	static unsigned int Read_Reclaim_Threshold;//per-block read count threshold
+	// RBER model: RBER = Base + ReadFactor * (block_read_count / pages_per_block) + PECycleFactor * erase_count + RetentionFactor * retention_time
+	static double ECC_Base_RBER;//base raw bit error rate
+	static double ECC_Read_Count_Factor;//RBER contribution per page-level read count
+	static double ECC_PE_Cycle_Factor;//RBER contribution per P/E cycle
+	static double ECC_Retention_Factor;//RBER contribution per unit retention time (nano-seconds)
+	static unsigned int ECC_Correction_Capability;//max correctable bit errors per codeword
+	static unsigned int ECC_Codeword_Size;//ECC codeword size in bytes (e.g., 1024 for 1 KiB)
+	static unsigned int IFP_Aggregation_Mode;//0: controller-level, 1: chip-level
+
 	void XML_serialize(Utils::XmlWriter& xmlwriter);
 	void XML_deserialize(rapidxml::xml_node<> *node);
 };
