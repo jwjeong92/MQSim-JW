@@ -14,6 +14,8 @@ enum class Trace_Time_Unit { PICOSECOND, NANOSECOND, MICROSECOND};//The unit of 
 #define ASCIITraceReadCode "1"
 #define ASCIITraceWriteCodeInteger 0
 #define ASCIITraceReadCodeInteger 1
+#define ASCIITraceGemvCode "2"
+#define ASCIITraceGemvCodeInteger 2
 #define ASCIILineDelimiter ' '
 #define ASCIIItemsPerLine 5
 

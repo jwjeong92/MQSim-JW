@@ -37,6 +37,11 @@ Host_IO_Request *IO_Flow_Trace_Based::Generate_next_request()
 		request->Type = Host_IO_Request_Type::WRITE;
 		STAT_generated_write_request_count++;
 	}
+	else if (current_trace_line[ASCIITraceTypeColumn].compare(ASCIITraceGemvCode) == 0)
+	{
+		request->Type = Host_IO_Request_Type::IFP_GEMV;
+		STAT_generated_read_request_count++;
+	}
 	else
 	{
 		request->Type = Host_IO_Request_Type::READ;
