@@ -586,6 +586,7 @@ namespace SSD_Components {
 
 						sim_time_type ecc_latency = _my_instance->ecc_engine->Get_ECC_latency(retry_count);
 						tr->STAT_execution_time += ecc_latency;
+						tr->ECC_decode_latency = ecc_latency;
 						if (retry_count > 0) {
 							Stats::Total_ECC_retries += (unsigned long)retry_count;
 						}
@@ -733,10 +734,10 @@ namespace SSD_Components {
 		dieBKE->ActiveTransfer = tr;
 		channels[tr->Address.ChannelID]->Chips[tr->Address.ChipID]->StartDataOutXfer();
 		chipBKE->Status = ChipStatus::DATA_OUT;
-		Simulator->Register_sim_event(Simulator->Time() + NVDDR2DataOutTransferTime(tr->Data_and_metadata_size_in_byte, channels[tr->Address.ChannelID]),
+		Simulator->Register_sim_event(Simulator->Time() + tr->ECC_decode_latency + NVDDR2DataOutTransferTime(tr->Data_and_metadata_size_in_byte, channels[tr->Address.ChannelID]),
 			this, dieBKE, (int)NVDDR2_SimEventType::READ_DATA_TRANSFERRED);
 
-		tr->STAT_transfer_time += NVDDR2DataOutTransferTime(tr->Data_and_metadata_size_in_byte, channels[tr->Address.ChannelID]);
+		tr->STAT_transfer_time += tr->ECC_decode_latency + NVDDR2DataOutTransferTime(tr->Data_and_metadata_size_in_byte, channels[tr->Address.ChannelID]);
 		channels[tr->Address.ChannelID]->SetStatus(BusChannelStatus::BUSY, channels[tr->Address.ChannelID]->Chips[tr->Address.ChipID]);
 	}
 

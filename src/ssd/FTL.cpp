@@ -8,6 +8,7 @@
 #include "../sim/Sim_Defs.h"
 #include "../utils/DistributionTypes.h"
 #include "../utils/Helper_Functions.h"
+#include "../exec/Flash_Parameter_Set.h"
 #include "FTL.h"
 #include "Stats.h"
 
@@ -41,9 +42,9 @@ namespace SSD_Components
 			0.33,      // p: read disturb PE cycle exponent
 			1.71,      // q: read disturb read count exponent
 			page_size_bits,  // page size in bits
-			40,        // correction_capability (max correctable bits per page)
-			5000,      // decode_latency (nanoseconds)
-			0          // max_retries: disabled for evaluation
+			Flash_Parameter_Set::ECC_Correction_Capability,  // correction_capability (from XML config)
+			Flash_Parameter_Set::IFP_ECC_Decode_Latency,     // decode_latency (from XML config)
+			Flash_Parameter_Set::IFP_ECC_Max_Retries         // max_retries (from XML config)
 		);
 
 		// IFP Aggregation Unit: controller-level mode, 100ns DRAM access per partial result
