@@ -8,15 +8,17 @@ namespace SSD_Components
 		Address_Mapping_Unit_Base* address_mapping_unit, Flash_Block_Manager_Base* block_manager, TSU_Base* tsu, NVM_PHY_ONFI* flash_controller,
 		GC_Block_Selection_Policy_Type block_selection_policy, double gc_threshold, bool preemptible_gc_enabled, double gc_hard_threshold,
 		unsigned int channel_count, unsigned int chip_no_per_channel, unsigned int die_no_per_chip, unsigned int plane_no_per_die,
-		unsigned int block_no_per_plane, unsigned int page_no_per_block, unsigned int sector_no_per_page, 
-		bool use_copyback, double rho, unsigned int max_ongoing_gc_reqs_per_plane, bool dynamic_wearleveling_enabled, bool static_wearleveling_enabled, unsigned int static_wearleveling_threshold, int seed) :
+		unsigned int block_no_per_plane, unsigned int page_no_per_block, unsigned int sector_no_per_page,
+		bool use_copyback, double rho, unsigned int max_ongoing_gc_reqs_per_plane, bool dynamic_wearleveling_enabled, bool static_wearleveling_enabled, unsigned int static_wearleveling_threshold,
+		unsigned int read_reclaim_threshold, int seed) :
 		Sim_Object(id), address_mapping_unit(address_mapping_unit), block_manager(block_manager), tsu(tsu), flash_controller(flash_controller), force_gc(false),
-		block_selection_policy(block_selection_policy), gc_threshold(gc_threshold),	use_copyback(use_copyback), 
+		block_selection_policy(block_selection_policy), gc_threshold(gc_threshold),	use_copyback(use_copyback),
 		preemptible_gc_enabled(preemptible_gc_enabled), gc_hard_threshold(gc_hard_threshold),
 		random_generator(seed), max_ongoing_gc_reqs_per_plane(max_ongoing_gc_reqs_per_plane),
 		channel_count(channel_count), chip_no_per_channel(chip_no_per_channel), die_no_per_chip(die_no_per_chip), plane_no_per_die(plane_no_per_die),
 		block_no_per_plane(block_no_per_plane), pages_no_per_block(page_no_per_block), sector_no_per_page(sector_no_per_page),
-		dynamic_wearleveling_enabled(dynamic_wearleveling_enabled), static_wearleveling_enabled(static_wearleveling_enabled), static_wearleveling_threshold(static_wearleveling_threshold)
+		dynamic_wearleveling_enabled(dynamic_wearleveling_enabled), static_wearleveling_enabled(static_wearleveling_enabled), static_wearleveling_threshold(static_wearleveling_threshold),
+		read_reclaim_threshold(read_reclaim_threshold)
 	{
 		_my_instance = this;
 		block_pool_gc_threshold = (unsigned int)(gc_threshold * (double)block_no_per_plane);
@@ -74,8 +76,8 @@ namespace SSD_Components
 							NVM_Transaction_Flash_WR* gc_wl_write = NULL;
 							for (flash_page_ID_type pageID = 0; pageID < block->Current_page_write_index; pageID++) {
 								if (_my_instance->block_manager->Is_page_valid(block, pageID)) {
-									Stats::Total_page_movements_for_gc++;
 									gc_wl_candidate_address.PageID = pageID;
+									Stats::Total_page_movements_for_gc++;
 									if (_my_instance->use_copyback) {
 										gc_wl_write = new NVM_Transaction_Flash_WR(Transaction_Source_Type::GC_WL, block->Stream_id, _my_instance->sector_no_per_page * SECTOR_SIZE_IN_BYTE,
 											NO_LPA, _my_instance->address_mapping_unit->Convert_address_to_ppa(gc_wl_candidate_address), NULL, 0, NULL, 0, INVALID_TIME_STAMP);

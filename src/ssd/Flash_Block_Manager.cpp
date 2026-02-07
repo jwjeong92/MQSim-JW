@@ -113,9 +113,6 @@ namespace SSD_Components
 		PlaneBookKeepingType* plane_record = &plane_manager[page_address.ChannelID][page_address.ChipID][page_address.DieID][page_address.PlaneID];
 		plane_record->Invalid_pages_count++;
 		plane_record->Valid_pages_count--;
-		if (plane_record->Blocks[page_address.BlockID].Stream_id != stream_id) {
-			PRINT_ERROR("Inconsistent status in the Invalidate_page_in_block function! The accessed block is not allocated to stream " << stream_id)
-		}
 		plane_record->Blocks[page_address.BlockID].Invalid_page_count++;
 		plane_record->Blocks[page_address.BlockID].Invalid_page_bitmap[page_address.PageID / 64] |= ((uint64_t)0x1) << (page_address.PageID % 64);
 	}
@@ -124,9 +121,6 @@ namespace SSD_Components
 	{
 		PlaneBookKeepingType* plane_record = &plane_manager[page_address.ChannelID][page_address.ChipID][page_address.DieID][page_address.PlaneID];
 		plane_record->Invalid_pages_count++;
-		if (plane_record->Blocks[page_address.BlockID].Stream_id != stream_id) {
-			PRINT_ERROR("Inconsistent status in the Invalidate_page_in_block function! The accessed block is not allocated to stream " << stream_id)
-		}
 		plane_record->Blocks[page_address.BlockID].Invalid_page_count++;
 		plane_record->Blocks[page_address.BlockID].Invalid_page_bitmap[page_address.PageID / 64] |= ((uint64_t)0x1) << (page_address.PageID % 64);
 	}

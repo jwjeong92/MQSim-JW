@@ -10,14 +10,15 @@ namespace SSD_Components
 {
 
 	GC_and_WL_Unit_Page_Level::GC_and_WL_Unit_Page_Level(const sim_object_id_type& id,
-		Address_Mapping_Unit_Base* address_mapping_unit, Flash_Block_Manager_Base* block_manager, TSU_Base* tsu, NVM_PHY_ONFI* flash_controller, 
+		Address_Mapping_Unit_Base* address_mapping_unit, Flash_Block_Manager_Base* block_manager, TSU_Base* tsu, NVM_PHY_ONFI* flash_controller,
 		GC_Block_Selection_Policy_Type block_selection_policy, double gc_threshold, bool preemptible_gc_enabled, double gc_hard_threshold,
 		unsigned int ChannelCount, unsigned int chip_no_per_channel, unsigned int die_no_per_chip, unsigned int plane_no_per_die,
-		unsigned int block_no_per_plane, unsigned int Page_no_per_block, unsigned int sectors_per_page, 
-		bool use_copyback, double rho, unsigned int max_ongoing_gc_reqs_per_plane, bool dynamic_wearleveling_enabled, bool static_wearleveling_enabled, unsigned int static_wearleveling_threshold, int seed)
+		unsigned int block_no_per_plane, unsigned int Page_no_per_block, unsigned int sectors_per_page,
+		bool use_copyback, double rho, unsigned int max_ongoing_gc_reqs_per_plane, bool dynamic_wearleveling_enabled, bool static_wearleveling_enabled, unsigned int static_wearleveling_threshold,
+		unsigned int read_reclaim_threshold, int seed)
 		: GC_and_WL_Unit_Base(id, address_mapping_unit, block_manager, tsu, flash_controller, block_selection_policy, gc_threshold, preemptible_gc_enabled, gc_hard_threshold,
-		ChannelCount, chip_no_per_channel, die_no_per_chip, plane_no_per_die, block_no_per_plane, Page_no_per_block, sectors_per_page, use_copyback, rho, max_ongoing_gc_reqs_per_plane, 
-			dynamic_wearleveling_enabled, static_wearleveling_enabled, static_wearleveling_threshold, seed)
+		ChannelCount, chip_no_per_channel, die_no_per_chip, plane_no_per_die, block_no_per_plane, Page_no_per_block, sectors_per_page, use_copyback, rho, max_ongoing_gc_reqs_per_plane,
+			dynamic_wearleveling_enabled, static_wearleveling_enabled, static_wearleveling_threshold, read_reclaim_threshold, seed)
 	{
 		rga_set_size = (unsigned int)log2(block_no_per_plane);
 	}
@@ -191,23 +192,15 @@ namespace SSD_Components
 		}
 	}
 
-	void GC_and_WL_Unit_Page_Level::Check_read_reclaim_required(const NVM::FlashMemory::Physical_Page_Address& block_address, unsigned int read_count)
+	void GC_and_WL_Unit_Page_Level::Check_read_reclaim_required(
+		const NVM::FlashMemory::Physical_Page_Address& block_address, unsigned int read_count)
 	{
-		// Read-reclaim threshold: if a block's cumulative read count exceeds this,
-		// migrate valid pages and erase the block to prevent read-disturb errors.
-		const unsigned int READ_RECLAIM_THRESHOLD = 100000;
-
-		if (read_count < READ_RECLAIM_THRESHOLD) {
+		if (read_count < this->read_reclaim_threshold) {
 			return;
 		}
 
 		PlaneBookKeepingType* pbke = block_manager->Get_plane_bookkeeping_entry(block_address);
-		Block_Pool_Slot_Type* block = &pbke->Blocks[block_address.BlockID];
 
-		// Don't reclaim if block already has ongoing GC/WL or is being erased
-		if (block->Has_ongoing_gc_wl) {
-			return;
-		}
 		if (pbke->Ongoing_erase_operations.find(block_address.BlockID) != pbke->Ongoing_erase_operations.end()) {
 			return;
 		}
@@ -218,8 +211,14 @@ namespace SSD_Components
 			return;
 		}
 
-		// Initiate read-reclaim: same logic as GC page movement
 		NVM::FlashMemory::Physical_Page_Address reclaim_address(block_address);
+		Block_Pool_Slot_Type* block = &pbke->Blocks[block_address.BlockID];
+
+		// No valid pages to move
+		if (block->Current_page_write_index == 0 || block->Invalid_page_count == block->Current_page_write_index) {
+			return;
+		}
+
 		block_manager->GC_WL_started(reclaim_address);
 		pbke->Ongoing_erase_operations.insert(block_address.BlockID);
 		address_mapping_unit->Set_barrier_for_accessing_physical_block(reclaim_address);
@@ -228,16 +227,22 @@ namespace SSD_Components
 			Stats::Total_read_reclaim_migrations++;
 			tsu->Prepare_for_transaction_submit();
 
-			NVM_Transaction_Flash_ER* erase_tr = new NVM_Transaction_Flash_ER(Transaction_Source_Type::GC_WL, block->Stream_id, reclaim_address);
+			NVM_Transaction_Flash_ER* erase_tr = new NVM_Transaction_Flash_ER(
+				Transaction_Source_Type::GC_WL, block->Stream_id, reclaim_address);
 
-			// Move valid pages
 			if (block->Current_page_write_index - block->Invalid_page_count > 0) {
 				for (flash_page_ID_type pageID = 0; pageID < block->Current_page_write_index; pageID++) {
 					if (block_manager->Is_page_valid(block, pageID)) {
+						Stats::Total_page_movements_for_gc++;
 						reclaim_address.PageID = pageID;
-						NVM_Transaction_Flash_RD* gc_read = new NVM_Transaction_Flash_RD(Transaction_Source_Type::GC_WL, block->Stream_id, sector_no_per_page * SECTOR_SIZE_IN_BYTE,
-							NO_LPA, address_mapping_unit->Convert_address_to_ppa(reclaim_address), reclaim_address, NULL, 0, NULL, 0, INVALID_TIME_STAMP);
-						NVM_Transaction_Flash_WR* gc_write = new NVM_Transaction_Flash_WR(Transaction_Source_Type::GC_WL, block->Stream_id, sector_no_per_page * SECTOR_SIZE_IN_BYTE,
+						NVM_Transaction_Flash_RD* gc_read = new NVM_Transaction_Flash_RD(
+							Transaction_Source_Type::GC_WL, block->Stream_id,
+							sector_no_per_page * SECTOR_SIZE_IN_BYTE,
+							NO_LPA, address_mapping_unit->Convert_address_to_ppa(reclaim_address),
+							reclaim_address, NULL, 0, NULL, 0, INVALID_TIME_STAMP);
+						NVM_Transaction_Flash_WR* gc_write = new NVM_Transaction_Flash_WR(
+							Transaction_Source_Type::GC_WL, block->Stream_id,
+							sector_no_per_page * SECTOR_SIZE_IN_BYTE,
 							NO_LPA, NO_PPA, reclaim_address, NULL, 0, gc_read, 0, INVALID_TIME_STAMP);
 						gc_write->ExecutionMode = WriteExecutionModeType::SIMPLE;
 						gc_write->RelatedErase = erase_tr;

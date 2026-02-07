@@ -3,23 +3,35 @@
 
 namespace SSD_Components
 {
-	ECC_Engine::ECC_Engine(double base_rber, double read_factor, double erase_factor,
+	ECC_Engine::ECC_Engine(double epsilon, double alpha, double k,
+		double beta, double m, double n,
+		double gamma, double p, double q,
 		unsigned int page_size_in_bits, unsigned int correction_capability,
 		sim_time_type decode_latency, unsigned int max_retries)
-		: base_rber(base_rber), read_factor(read_factor), erase_factor(erase_factor),
+		: epsilon(epsilon), alpha(alpha), k(k),
+		beta(beta), m(m), n(n),
+		gamma(gamma), p(p), q(q),
 		page_size_in_bits(page_size_in_bits), correction_capability(correction_capability),
 		decode_latency(decode_latency), max_retries(max_retries)
 	{
 	}
 
-	double ECC_Engine::Calculate_RBER(unsigned int read_count, unsigned int erase_count)
+	double ECC_Engine::Calculate_RBER(unsigned int pe_cycles, double retention_time_hours, double avg_reads_per_page)
 	{
-		return base_rber + read_factor * read_count + erase_factor * erase_count;
+		// Power-law RBER model: RBER = epsilon + wear-out + retention loss + read disturb
+		// retention_time_hours is already in hours (expected by model)
+		// avg_reads_per_page = block_read_count / pages_per_block
+		double rber = epsilon
+			+ alpha * pow(pe_cycles, k)
+			+ beta * pow(pe_cycles, m) * pow(retention_time_hours, n)
+			+ gamma * pow(pe_cycles, p) * pow(avg_reads_per_page, q);
+
+		return rber;
 	}
 
-	int ECC_Engine::Attempt_correction(unsigned int read_count, unsigned int erase_count)
+	int ECC_Engine::Attempt_correction(unsigned int pe_cycles, double retention_time_hours, double avg_reads_per_page)
 	{
-		double rber = Calculate_RBER(read_count, erase_count);
+		double rber = Calculate_RBER(pe_cycles, retention_time_hours, avg_reads_per_page);
 		double expected_errors = rber * page_size_in_bits;
 
 		// First-pass hard decode: can correct up to correction_capability errors

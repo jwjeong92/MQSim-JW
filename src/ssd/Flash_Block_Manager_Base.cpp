@@ -41,6 +41,7 @@ namespace SSD_Components
 							plane_manager[channelID][chipID][dieID][planeID].Blocks[blockID].Ongoing_user_program_count = 0;
 							plane_manager[channelID][chipID][dieID][planeID].Blocks[blockID].Ongoing_user_read_count = 0;
 							plane_manager[channelID][chipID][dieID][planeID].Blocks[blockID].Read_count = 0;
+							plane_manager[channelID][chipID][dieID][planeID].Blocks[blockID].First_write_time = INVALID_TIME;
 							Block_Pool_Slot_Type::Page_vector_size = pages_no_per_block / (sizeof(uint64_t) * 8) + (pages_no_per_block % (sizeof(uint64_t) * 8) == 0 ? 0 : 1);
 							plane_manager[channelID][chipID][dieID][planeID].Blocks[blockID].Invalid_page_bitmap = new uint64_t[Block_Pool_Slot_Type::Page_vector_size];
 							for (unsigned int i = 0; i < Block_Pool_Slot_Type::Page_vector_size; i++) {
@@ -99,6 +100,7 @@ namespace SSD_Components
 			Invalid_page_bitmap[i] = All_VALID_PAGE;
 		}
 		Read_count = 0;
+		First_write_time = INVALID_TIME; // Reset retention timer
 		Stream_id = NO_STREAM;
 		Holds_mapping_data = false;
 		Erase_transaction = NULL;
@@ -216,7 +218,14 @@ namespace SSD_Components
 	void Flash_Block_Manager_Base::Program_transaction_serviced(const NVM::FlashMemory::Physical_Page_Address& page_address)
 	{
 		PlaneBookKeepingType *plane_record = &plane_manager[page_address.ChannelID][page_address.ChipID][page_address.DieID][page_address.PlaneID];
-		plane_record->Blocks[page_address.BlockID].Ongoing_user_program_count--;
+		Block_Pool_Slot_Type* block = &plane_record->Blocks[page_address.BlockID];
+
+		// Record first write time if not set (for retention time calculation)
+		if (block->First_write_time == INVALID_TIME) {
+			block->First_write_time = Simulator->Time();
+		}
+
+		block->Ongoing_user_program_count--;
 	}
 
 	void Flash_Block_Manager_Base::Read_transaction_serviced(const NVM::FlashMemory::Physical_Page_Address& page_address)

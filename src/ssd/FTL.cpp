@@ -26,11 +26,25 @@ namespace SSD_Components
 	{
 		Stats::Init_stats(channel_no, chip_no_per_channel, die_no_per_chip, plane_no_per_die, block_no_per_plane, page_no_per_block, max_allowed_block_erase_count);
 
-		// ECC Engine: RBER model parameters
-		// base_rber=1e-9, read_factor=1e-10, erase_factor=1e-8
-		// page_size_bits = page_no_per_block is not page size; use page_size_in_sectors * SECTOR_SIZE * 8
+		// ECC Engine: Power-law RBER model parameters for 72-layer TLC NAND
+		// Model: RBER = epsilon + alpha*(cycles^k) + beta*(cycles^m)*(time^n) + gamma*(cycles^p)*(reads^q)
+		// Parameters from lib/rber_model_example.py (72-layer TLC)
 		unsigned int page_size_bits = page_size_in_sectors * SECTOR_SIZE_IN_BYTE * 8;
-		ECC = new ECC_Engine(1e-9, 1e-10, 1e-8, page_size_bits, 40, 5000, 3);
+		ECC = new ECC_Engine(
+			1.48e-03,  // epsilon: base RBER (fresh flash)
+			3.90e-10,  // alpha: wear-out coefficient
+			2.05,      // k: wear-out exponent (cycles^k)
+			6.28e-05,  // beta: retention loss coefficient
+			0.14,      // m: retention PE cycle exponent
+			0.54,      // n: retention time exponent (time in hours)
+			3.73e-09,  // gamma: read disturb coefficient
+			0.33,      // p: read disturb PE cycle exponent
+			1.71,      // q: read disturb read count exponent
+			page_size_bits,  // page size in bits
+			40,        // correction_capability (max correctable bits per page)
+			5000,      // decode_latency (nanoseconds)
+			0          // max_retries: disabled for evaluation
+		);
 
 		// IFP Aggregation Unit: controller-level mode, 100ns DRAM access per partial result
 		Aggregation_Unit = new IFP_Aggregation_Unit(IFP_Aggregation_Mode::CONTROLLER_LEVEL, 100);

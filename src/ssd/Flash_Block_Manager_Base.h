@@ -44,6 +44,7 @@ namespace SSD_Components
 		int Ongoing_user_read_count;
 		int Ongoing_user_program_count;
 		unsigned int Read_count;//cumulative read count for read-reclaim and RBER modeling
+		sim_time_type First_write_time;//Time when first page was written after erase (for retention time calculation)
 		void Erase();
 	};
 
@@ -97,6 +98,7 @@ namespace SSD_Components
 		void Program_transaction_serviced(const NVM::FlashMemory::Physical_Page_Address& page_address);//Updates the block bookkeeping record
 		bool Is_having_ongoing_program(const NVM::FlashMemory::Physical_Page_Address& block_address);//Cheks if block has any ongoing program request
 		bool Is_page_valid(Block_Pool_Slot_Type* block, flash_page_ID_type page_id);//Make the page invalid in the block bookkeeping record
+		unsigned int Get_pages_per_block() const { return pages_no_per_block; }//Returns the number of pages per block
 	protected:
 		PlaneBookKeepingType ****plane_manager;//Keeps track of plane block usage information
 		GC_and_WL_Unit_Base *gc_and_wl_unit;

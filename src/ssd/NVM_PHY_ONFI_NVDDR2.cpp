@@ -565,7 +565,25 @@ namespace SSD_Components {
 					if (tr->Type == Transaction_Type::READ || tr->Type == Transaction_Type::IFP_GEMV) {
 						PlaneBookKeepingType* pbke = _my_instance->block_manager_ref->Get_plane_bookkeeping_entry(tr->Address);
 						Block_Pool_Slot_Type* block = &pbke->Blocks[tr->Address.BlockID];
-						int retry_count = _my_instance->ecc_engine->Attempt_correction(block->Read_count, block->Erase_count);
+
+						// Calculate retention time in hours (time since first write to block)
+						double retention_time_hours = 0.0;
+						if (block->First_write_time != INVALID_TIME) {
+							sim_time_type retention_time_ns = Simulator->Time() - block->First_write_time;
+							retention_time_hours = retention_time_ns / (3600.0 * 1e9); // Convert ns to hours
+						}
+
+						// Calculate average reads per page (block-level reads / pages per block)
+						unsigned int pages_per_block = _my_instance->block_manager_ref->Get_pages_per_block();
+						double avg_reads_per_page = (double)block->Read_count / pages_per_block;
+
+						// Call ECC with power-law RBER model parameters
+						int retry_count = _my_instance->ecc_engine->Attempt_correction(
+							block->Erase_count,
+							retention_time_hours,
+							avg_reads_per_page
+						);
+
 						sim_time_type ecc_latency = _my_instance->ecc_engine->Get_ECC_latency(retry_count);
 						tr->STAT_execution_time += ecc_latency;
 						if (retry_count > 0) {
@@ -574,11 +592,14 @@ namespace SSD_Components {
 						if (retry_count < 0) {
 							Stats::Total_ECC_uncorrectable++;
 							Stats::Total_ECC_failures++;
-							// Trigger read-reclaim for this block
-							if (_my_instance->gc_wl_unit_ref != NULL) {
-								_my_instance->gc_wl_unit_ref->Check_read_reclaim_required(tr->Address, block->Read_count);
-							}
 						}
+
+						// Check read-reclaim on EVERY read completion (not just ECC failures)
+						// Read-reclaim is proactive: triggers based on read count threshold alone
+						if (_my_instance->gc_wl_unit_ref != NULL) {
+							_my_instance->gc_wl_unit_ref->Check_read_reclaim_required(tr->Address, block->Read_count);
+						}
+
 						if (tr->Type == Transaction_Type::IFP_GEMV) {
 							((NVM_Transaction_Flash_IFP*)tr)->ECC_retry_count = (retry_count > 0) ? (unsigned int)retry_count : 0;
 							((NVM_Transaction_Flash_IFP*)tr)->ECC_retry_needed = (retry_count != 0);
