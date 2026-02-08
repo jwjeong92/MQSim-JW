@@ -1,3 +1,29 @@
-mqsim
+# Build artifacts
 build/
+*.o
+mqsim
+llm_trace_gen
 
+# Large trace files (regeneratable via tools/automation/generate_llm_traces.sh)
+traces/llm/*.txt
+traces/progressive/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Temporary files
+*.tmp
+*.swp
+*~
+COMMIT_MESSAGE.txt
+
+# IDE files
+.vscode/
+.idea/
+*.sublime-*
+
+# OS files
+.DS_Store
+Thumbs.db

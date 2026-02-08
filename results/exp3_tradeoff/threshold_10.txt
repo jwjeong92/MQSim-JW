@@ -1,0 +1,28 @@
+======================================================================
+LLM Inference Simulation Results: llama70b_threshold_10_config_scenario_1
+======================================================================
+
+📊 Host I/O Statistics:
+  Total Requests:      100,000
+  Read Requests:       100,000
+  IOPS:                87,156.79
+  Bandwidth:           1427793004.13 MB/s
+  Avg Response Time:   492478.00 μs
+
+🔧 Flash Operations:
+  Flash Reads:         13,245 single + 50,327 multiplane
+  Flash Writes:        0
+  Flash Erases:        0
+  GC Executions:       0
+  Read-Reclaim Ops:    0
+
+⚠️  ECC Statistics (KEY METRICS):
+  ECC Retries:         0
+  ECC Failures:        196,767
+  Uncorrectable:       196,767
+  Retry Rate:          0.0000 (0.00%)
+  Failure Rate:        3.0952 (309.52%)
+  Uncorrectable Rate:  3.0952 (309.52%)
+
+======================================================================
+✅ Exported metrics to /home/jwjeong/git_repo/MQSim-JW/results/exp3_tradeoff/threshold_10.json

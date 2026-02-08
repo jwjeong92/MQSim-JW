@@ -45,6 +45,25 @@ namespace SSD_Components
 		int Ongoing_user_program_count;
 		unsigned int Read_count;//cumulative read count for read-reclaim and RBER modeling
 		sim_time_type First_write_time;//Time when first page was written after erase (for retention time calculation)
+
+		// NEW: Read-disturb tracking for LLM inference experiments
+		unsigned int Read_count_since_program;      // Reads since last program/erase (for read-disturb)
+		unsigned int Read_count_since_reclaim;      // Reads since last read-reclaim (for policy evaluation)
+		sim_time_type Last_read_time;              // Timestamp of most recent read
+		std::vector<unsigned int> Page_read_counts; // Per-page read tracking (for accurate read-disturb modeling)
+
+		// ECC retry tracking for reliability analysis
+		unsigned int Recent_ecc_retries;            // ECC retries in recent window (sliding)
+		unsigned int Total_ecc_retries;             // Lifetime ECC retry count
+		unsigned int Uncorrectable_errors;          // Count of uncorrectable errors
+		bool Has_uncorrectable_errors;              // Flag for block retirement
+
+		// Helper methods for read-disturb tracking
+		void Record_read(flash_page_ID_type page_id, sim_time_type current_time);
+		void Record_ecc_retry();
+		void Reset_for_reclaim();
+		double Calculate_read_disturb_BER(double gamma, double p, double q) const;
+
 		void Erase();
 	};
 

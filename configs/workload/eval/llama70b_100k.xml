@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Workload_Definition>
+    <IO_Scenario>
+        <IO_Flow_Parameter_Set_Trace_Based>
+            <Priority_Class>HIGH</Priority_Class>
+            <Device_Level_Data_Caching_Mode>WRITE_CACHE</Device_Level_Data_Caching_Mode>
+
+            <Channel_IDs>0-7</Channel_IDs>
+            <Chip_IDs>0-1</Chip_IDs>
+            <Die_IDs>0</Die_IDs>
+            <Plane_IDs>0-3</Plane_IDs>
+
+            <!-- Compact single-iteration trace -->
+            <Trace_File_Path>wkdconf/llm_traces/llama70b_iter.txt</Trace_File_Path>
+
+            <!-- Long campaign: 100K tokens (for read-disturb stress test) -->
+            <Relay_Count>100000</Relay_Count>
+
+            <Percentage_To_Be_Simulated>100</Percentage_To_Be_Simulated>
+        </IO_Flow_Parameter_Set_Trace_Based>
+    </IO_Scenario>
+</Workload_Definition>

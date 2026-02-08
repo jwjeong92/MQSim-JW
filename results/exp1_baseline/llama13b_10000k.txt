@@ -1,0 +1,28 @@
+======================================================================
+LLM Inference Simulation Results: llama13b_10000k_config_scenario_1
+======================================================================
+
+📊 Host I/O Statistics:
+  Total Requests:      10,000
+  Read Requests:       10,000
+  IOPS:                97,321.86
+  Bandwidth:           1593514767.29 MB/s
+  Avg Response Time:   42711.00 μs
+
+🔧 Flash Operations:
+  Flash Reads:         774 single + 4,207 multiplane
+  Flash Writes:        0
+  Flash Erases:        0
+  GC Executions:       0
+  Read-Reclaim Ops:    0
+
+⚠️  ECC Statistics (KEY METRICS):
+  ECC Retries:         0
+  ECC Failures:        16,929
+  Uncorrectable:       16,929
+  Retry Rate:          0.0000 (0.00%)
+  Failure Rate:        3.3987 (339.87%)
+  Uncorrectable Rate:  3.3987 (339.87%)
+
+======================================================================
+✅ Exported metrics to /home/jwjeong/git_repo/MQSim-JW/results/exp1_baseline/llama13b_10000k.json

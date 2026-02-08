@@ -573,26 +573,43 @@ namespace SSD_Components {
 							retention_time_hours = retention_time_ns / (3600.0 * 1e9); // Convert ns to hours
 						}
 
-						// Calculate average reads per page (block-level reads / pages per block)
-						unsigned int pages_per_block = _my_instance->block_manager_ref->Get_pages_per_block();
-						double avg_reads_per_page = (double)block->Read_count / pages_per_block;
+						// NEW: Use actual per-page read count (more accurate for read-disturb)
+						// Get the specific page's read count from our new tracking
+						unsigned int page_id = tr->Address.PageID;
+						double page_reads = 0.0;
+						if (page_id < block->Page_read_counts.size()) {
+							page_reads = (double)block->Page_read_counts[page_id];
+						} else {
+							// Fallback to average if page_id is out of range (shouldn't happen)
+							unsigned int pages_per_block = _my_instance->block_manager_ref->Get_pages_per_block();
+							page_reads = (double)block->Read_count / pages_per_block;
+						}
 
 						// Call ECC with power-law RBER model parameters
 						int retry_count = _my_instance->ecc_engine->Attempt_correction(
 							block->Erase_count,
 							retention_time_hours,
-							avg_reads_per_page
+							page_reads  // Now using actual page-level read count!
 						);
 
 						sim_time_type ecc_latency = _my_instance->ecc_engine->Get_ECC_latency(retry_count);
 						tr->STAT_execution_time += ecc_latency;
 						tr->ECC_decode_latency = ecc_latency;
+
+						// Track ECC retries in block metadata for per-block analysis
 						if (retry_count > 0) {
 							Stats::Total_ECC_retries += (unsigned long)retry_count;
+							// NEW: Record retry in block for read-disturb analysis
+							for (int i = 0; i < retry_count; i++) {
+								block->Record_ecc_retry();
+							}
 						}
 						if (retry_count < 0) {
 							Stats::Total_ECC_uncorrectable++;
 							Stats::Total_ECC_failures++;
+							// NEW: Mark block as having uncorrectable errors
+							block->Has_uncorrectable_errors = true;
+							block->Uncorrectable_errors++;
 						}
 
 						// Check read-reclaim on EVERY read completion (not just ECC failures)

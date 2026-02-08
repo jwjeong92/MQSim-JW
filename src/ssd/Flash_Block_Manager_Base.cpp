@@ -1,4 +1,6 @@
 #include "Flash_Block_Manager.h"
+#include <cmath>      // for std::pow
+#include <algorithm>  // for std::max_element, std::fill
 
 
 namespace SSD_Components
@@ -42,6 +44,18 @@ namespace SSD_Components
 							plane_manager[channelID][chipID][dieID][planeID].Blocks[blockID].Ongoing_user_read_count = 0;
 							plane_manager[channelID][chipID][dieID][planeID].Blocks[blockID].Read_count = 0;
 							plane_manager[channelID][chipID][dieID][planeID].Blocks[blockID].First_write_time = INVALID_TIME;
+
+							// NEW: Initialize read-disturb tracking fields
+							plane_manager[channelID][chipID][dieID][planeID].Blocks[blockID].Read_count_since_program = 0;
+							plane_manager[channelID][chipID][dieID][planeID].Blocks[blockID].Read_count_since_reclaim = 0;
+							plane_manager[channelID][chipID][dieID][planeID].Blocks[blockID].Last_read_time = 0;
+							plane_manager[channelID][chipID][dieID][planeID].Blocks[blockID].Recent_ecc_retries = 0;
+							plane_manager[channelID][chipID][dieID][planeID].Blocks[blockID].Total_ecc_retries = 0;
+							plane_manager[channelID][chipID][dieID][planeID].Blocks[blockID].Uncorrectable_errors = 0;
+							plane_manager[channelID][chipID][dieID][planeID].Blocks[blockID].Has_uncorrectable_errors = false;
+							// Initialize per-page read counts vector
+							plane_manager[channelID][chipID][dieID][planeID].Blocks[blockID].Page_read_counts.resize(pages_no_per_block, 0);
+
 							Block_Pool_Slot_Type::Page_vector_size = pages_no_per_block / (sizeof(uint64_t) * 8) + (pages_no_per_block % (sizeof(uint64_t) * 8) == 0 ? 0 : 1);
 							plane_manager[channelID][chipID][dieID][planeID].Blocks[blockID].Invalid_page_bitmap = new uint64_t[Block_Pool_Slot_Type::Page_vector_size];
 							for (unsigned int i = 0; i < Block_Pool_Slot_Type::Page_vector_size; i++) {
@@ -104,6 +118,15 @@ namespace SSD_Components
 		Stream_id = NO_STREAM;
 		Holds_mapping_data = false;
 		Erase_transaction = NULL;
+
+		// NEW: Reset read-disturb tracking
+		Read_count_since_program = 0;
+		Read_count_since_reclaim = 0;
+		Last_read_time = 0;
+		Recent_ecc_retries = 0;
+		// Note: Total_ecc_retries and Uncorrectable_errors are cumulative, don't reset
+		// Clear per-page read counts
+		std::fill(Page_read_counts.begin(), Page_read_counts.end(), 0);
 	}
 
 	Block_Pool_Slot_Type* PlaneBookKeepingType::Get_a_free_block(stream_id_type stream_id, bool for_mapping_data)
@@ -211,8 +234,13 @@ namespace SSD_Components
 	void Flash_Block_Manager_Base::Read_transaction_issued(const NVM::FlashMemory::Physical_Page_Address& page_address)
 	{
 		PlaneBookKeepingType *plane_record = &plane_manager[page_address.ChannelID][page_address.ChipID][page_address.DieID][page_address.PlaneID];
-		plane_record->Blocks[page_address.BlockID].Ongoing_user_read_count++;
-		plane_record->Blocks[page_address.BlockID].Read_count++;
+		Block_Pool_Slot_Type* block = &plane_record->Blocks[page_address.BlockID];
+
+		block->Ongoing_user_read_count++;
+		block->Read_count++;  // Keep existing Read_count tracking
+
+		// NEW: Track read-disturb with per-page granularity
+		block->Record_read(page_address.PageID, Simulator->Time());
 	}
 
 	void Flash_Block_Manager_Base::Program_transaction_serviced(const NVM::FlashMemory::Physical_Page_Address& page_address)
@@ -252,5 +280,51 @@ namespace SSD_Components
 			return true;
 		}
 		return false;
+	}
+
+	// NEW: Read-disturb tracking methods
+
+	void Block_Pool_Slot_Type::Record_read(flash_page_ID_type page_id, sim_time_type current_time)
+	{
+		// Update cumulative counts
+		Read_count++;
+		Read_count_since_program++;
+		Read_count_since_reclaim++;
+		Last_read_time = current_time;
+
+		// Update per-page read count (for accurate read-disturb modeling)
+		if (page_id < Page_read_counts.size()) {
+			Page_read_counts[page_id]++;
+		}
+	}
+
+	void Block_Pool_Slot_Type::Record_ecc_retry()
+	{
+		Recent_ecc_retries++;
+		Total_ecc_retries++;
+	}
+
+	void Block_Pool_Slot_Type::Reset_for_reclaim()
+	{
+		// Called when read-reclaim migrates this block
+		Read_count_since_reclaim = 0;
+		Recent_ecc_retries = 0;
+		// Note: Don't reset Page_read_counts yet, they reset on erase
+		// This allows tracking cumulative read-disturb until block is erased
+	}
+
+	double Block_Pool_Slot_Type::Calculate_read_disturb_BER(double gamma, double p, double q) const
+	{
+		// Calculate read-disturb BER using power-law model: γ(PE^p)(r^q)
+		// Use maximum page read count (worst case for the block)
+		unsigned int max_page_reads = 0;
+		if (!Page_read_counts.empty()) {
+			max_page_reads = *std::max_element(Page_read_counts.begin(), Page_read_counts.end());
+		}
+
+		// Power-law read-disturb formula
+		double read_disturb_ber = gamma * std::pow((double)Erase_count, p) * std::pow((double)max_page_reads, q);
+
+		return read_disturb_ber;
 	}
 }

@@ -1,0 +1,30 @@
+{
+  "host": {
+    "name": "Host.IO_Flow.Trace./home/jwjeong/git_repo/MQSim-JW/wkdconf/llm_traces/llama70b_iter.txt",
+    "total_requests": 10000,
+    "read_requests": 10000,
+    "write_requests": 0,
+    "iops": 150192.070877,
+    "bandwidth_mbps": 2459101264.765927,
+    "avg_response_time_us": 30049.0
+  },
+  "ftl": {
+    "total_flash_reads": 796,
+    "multiplane_reads": 2667,
+    "total_flash_writes": 0,
+    "total_flash_erases": 0,
+    "total_gc_executions": 0,
+    "total_wl_executions": 0,
+    "total_read_reclaim": 0,
+    "total_ecc_retries": 0,
+    "total_ecc_failures": 10822,
+    "total_ecc_uncorrectable": 10822,
+    "cmt_hits_read": 28,
+    "cmt_misses_read": 10402,
+    "ecc_retry_rate": 0.0,
+    "ecc_failure_rate": 3.1250360958706325,
+    "uncorrectable_rate": 3.1250360958706325
+  },
+  "source_file": "/home/jwjeong/git_repo/MQSim-JW/results/exp1_baseline/llama70b_10000k_config_scenario_1.xml",
+  "experiment_name": "llama70b_10000k_config_scenario_1"
+}

@@ -1,0 +1,88 @@
+{
+  "campaign_tokens": 10000000,
+  "model": "Llama2-70B",
+  "read_rate": 0.636,
+  "r_squared": 0.999,
+  "thresholds": [
+    {
+      "threshold": 10,
+      "reclaims_per_hot_block": 354.9107142857143,
+      "avg_pe_cycles": 35.49107142857143,
+      "tbw_tb": 14.556884765625,
+      "ecc_failure_rate": 0.01581,
+      "lifetime_years": 2.315843887309382e-07
+    },
+    {
+      "threshold": 50,
+      "reclaims_per_hot_block": 70.98214285714286,
+      "avg_pe_cycles": 7.098214285714286,
+      "tbw_tb": 2.911376953125,
+      "ecc_failure_rate": 0.01705,
+      "lifetime_years": 1.157921943654691e-06
+    },
+    {
+      "threshold": 100,
+      "reclaims_per_hot_block": 35.49107142857143,
+      "avg_pe_cycles": 3.549107142857143,
+      "tbw_tb": 1.4556884765625,
+      "ecc_failure_rate": 0.0186,
+      "lifetime_years": 2.315843887309382e-06
+    },
+    {
+      "threshold": 500,
+      "reclaims_per_hot_block": 7.0982142857142865,
+      "avg_pe_cycles": 0.7098214285714287,
+      "tbw_tb": 0.29113769531250006,
+      "ecc_failure_rate": 0.031,
+      "lifetime_years": 1.157921943654691e-05
+    },
+    {
+      "threshold": 1000,
+      "reclaims_per_hot_block": 3.5491071428571432,
+      "avg_pe_cycles": 0.35491071428571436,
+      "tbw_tb": 0.14556884765625003,
+      "ecc_failure_rate": 0.0465,
+      "lifetime_years": 2.315843887309382e-05
+    },
+    {
+      "threshold": 5000,
+      "reclaims_per_hot_block": 0,
+      "avg_pe_cycles": 0,
+      "tbw_tb": 0.0,
+      "ecc_failure_rate": 0.12552232142857142,
+      "lifetime_years": Infinity
+    },
+    {
+      "threshold": 10000,
+      "reclaims_per_hot_block": 0,
+      "avg_pe_cycles": 0,
+      "tbw_tb": 0.0,
+      "ecc_failure_rate": 0.12552232142857142,
+      "lifetime_years": Infinity
+    },
+    {
+      "threshold": 50000,
+      "reclaims_per_hot_block": 0,
+      "avg_pe_cycles": 0,
+      "tbw_tb": 0.0,
+      "ecc_failure_rate": 0.12552232142857142,
+      "lifetime_years": Infinity
+    },
+    {
+      "threshold": 100000,
+      "reclaims_per_hot_block": 0,
+      "avg_pe_cycles": 0,
+      "tbw_tb": 0.0,
+      "ecc_failure_rate": 0.12552232142857142,
+      "lifetime_years": Infinity
+    },
+    {
+      "threshold": 1000000,
+      "reclaims_per_hot_block": 0,
+      "avg_pe_cycles": 0,
+      "tbw_tb": 0.0,
+      "ecc_failure_rate": 0.12552232142857142,
+      "lifetime_years": Infinity
+    }
+  ]
+}

@@ -8,6 +8,8 @@ BUILD_DIR := $(addprefix build/,$(MODULES)) build
 
 SRC       := $(foreach sdir,$(SRC_DIR),$(wildcard $(sdir)/*.cpp))
 SRC       := src/main.cpp $(SRC)
+# Exclude LLM_Trace_Generator.cpp from main mqsim build (it has its own main)
+SRC       := $(filter-out src/exec/LLM_Trace_Generator.cpp,$(SRC))
 OBJ       := $(patsubst src/%.cpp,build/%.o,$(SRC))
 INCLUDES  := $(addprefix -I,$(SRC_DIR))
 
@@ -18,9 +20,12 @@ $1/%.o: %.cpp
 	$(CC) $(CC_FLAGS) $(INCLUDES) -c $$< -o $$@
 endef
 
-.PHONY: all checkdirs clean
+.PHONY: all checkdirs clean llm_trace_gen
 
 all: checkdirs mqsim
+
+llm_trace_gen: checkdirs build/exec/LLM_Trace_Generator.o
+	$(LD) build/exec/LLM_Trace_Generator.o -o $@
 
 mqsim: $(OBJ)
 	$(LD) $^ -o $@
@@ -32,6 +37,6 @@ $(BUILD_DIR):
 
 clean:
 	rm -rf $(BUILD_DIR)
-	rm -f mqsim
+	rm -f mqsim llm_trace_gen
 
 $(foreach bdir,$(BUILD_DIR),$(eval $(call make-goal,$(bdir))))

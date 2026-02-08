@@ -1,0 +1,30 @@
+{
+  "host": {
+    "name": "Host.IO_Flow.Trace./home/jwjeong/git_repo/MQSim-JW/wkdconf/llm_traces/llama70b_iter.txt",
+    "total_requests": 100000,
+    "read_requests": 100000,
+    "write_requests": 0,
+    "iops": 87156.790537,
+    "bandwidth_mbps": 1427793004.132031,
+    "avg_response_time_us": 492478.0
+  },
+  "ftl": {
+    "total_flash_reads": 13245,
+    "multiplane_reads": 50327,
+    "total_flash_writes": 0,
+    "total_flash_erases": 0,
+    "total_gc_executions": 0,
+    "total_wl_executions": 0,
+    "total_read_reclaim": 0,
+    "total_ecc_retries": 0,
+    "total_ecc_failures": 196767,
+    "total_ecc_uncorrectable": 196767,
+    "cmt_hits_read": 5938,
+    "cmt_misses_read": 184486,
+    "ecc_retry_rate": 0.0,
+    "ecc_failure_rate": 3.095183414081671,
+    "uncorrectable_rate": 3.095183414081671
+  },
+  "source_file": "/home/jwjeong/git_repo/MQSim-JW/results/exp3_tradeoff/llama70b_threshold_500_config_scenario_1.xml",
+  "experiment_name": "llama70b_threshold_500_config_scenario_1"
+}
